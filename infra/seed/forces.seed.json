@@ -1,0 +1,17 @@
+[
+  {
+    "forceId": "force-1",
+    "nationality": "iran",
+    "unitType": "air-defense",
+    "observedTime": "2026-03-02T01:00:00Z",
+    "confidence": 0.7,
+    "lon": 51.389,
+    "lat": 35.6892,
+    "sources": [
+      {
+        "url": "https://example.com/c",
+        "provider": "Example"
+      }
+    ]
+  }
+]

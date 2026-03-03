@@ -1,0 +1,24 @@
+:root {
+  --c2-bg: #0d131b;
+  --c2-panel: #182332;
+  --c2-border: #2a3a52;
+  --c2-text: #dfe8f7;
+  --c2-muted: #8ba0c0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: radial-gradient(circle at 20% 20%, #1a2538 0%, var(--c2-bg) 45%, #090d14 100%);
+  color: var(--c2-text);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+main {
+  min-height: 100vh;
+}

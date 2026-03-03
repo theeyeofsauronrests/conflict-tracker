@@ -1,0 +1,50 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es2022"
+    ],
+    "allowJs": false,
+    "jsx": "preserve",
+    "incremental": true,
+    "isolatedModules": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@conflict-tracker/data-model": [
+        "../../packages/data-model/src"
+      ],
+      "@conflict-tracker/ingest-plugins": [
+        "../../packages/ingest-plugins/src"
+      ],
+      "@conflict-tracker/agent-pipeline": [
+        "../../packages/agent-pipeline/src"
+      ],
+      "@conflict-tracker/map-layers": [
+        "../../packages/map-layers/src"
+      ],
+      "@conflict-tracker/plugin-registry": [
+        "../../packages/plugin-registry/src"
+      ]
+    },
+    "noEmit": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

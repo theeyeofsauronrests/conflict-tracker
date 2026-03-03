@@ -1,0 +1,40 @@
+[
+  {
+    "eventType": "strike",
+    "eventTime": "2026-03-02T00:00:00Z",
+    "confidence": 0.77,
+    "rawText": "OSINT report of strike near Baghdad.",
+    "dedupeKey": "seed-strike-baghdad",
+    "lon": 44.3661,
+    "lat": 33.3152,
+    "radiusM": 300,
+    "actorNationality": "iran",
+    "targetNationality": "usa",
+    "sources": [
+      {
+        "url": "https://example.com/a",
+        "provider": "Example",
+        "title": "Seed strike"
+      }
+    ]
+  },
+  {
+    "eventType": "intercept",
+    "eventTime": "2026-03-02T03:00:00Z",
+    "confidence": 0.69,
+    "rawText": "OSINT report of intercept over northern Iraq.",
+    "dedupeKey": "seed-intercept-mosul",
+    "lon": 43.1189,
+    "lat": 36.3416,
+    "radiusM": 180,
+    "actorNationality": "israel",
+    "targetNationality": "iran",
+    "sources": [
+      {
+        "url": "https://example.com/b",
+        "provider": "Example",
+        "title": "Seed intercept"
+      }
+    ]
+  }
+]
