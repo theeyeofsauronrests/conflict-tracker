@@ -28,10 +28,14 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   // Users can "time travel" the map by shrinking or expanding this window.
   const [windowHours, setWindowHours] = useState(72);
   // Current time in the header helps analysts compare feed recency against "now".
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
+  // We only format locale-dependent timestamps after mount to avoid hydration mismatch.
+  const [mounted, setMounted] = useState(false);
   const Icon = (DT as any).Icon ?? (({ children }: { children: React.ReactNode }) => <span>{children}</span>);
 
   useEffect(() => {
+    setMounted(true);
+    setNow(new Date());
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -43,6 +47,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   }, [events, windowHours]);
 
   // Build render layers once per relevant data change.
+  // Event entities are rendered as icon markers; deck layers keep forces/assets overlays.
   const layers = useMemo(() => createPrimaryLayers([], forces, assets), [forces, assets]);
   // Start the map focused on the core area of interest.
   const viewport = useMemo(() => getDefaultViewport(), []);
@@ -74,11 +79,11 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
       >
         <div>
           <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Current time</div>
-          <strong>{now.toLocaleString()}</strong>
+          <strong suppressHydrationWarning>{mounted && now ? now.toLocaleString() : "Loading..."}</strong>
         </div>
         <div>
           <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Data as of</div>
-          <strong>{dataAsOf ? dataAsOf.toLocaleString() : "No data loaded"}</strong>
+          <strong suppressHydrationWarning>{mounted && dataAsOf ? dataAsOf.toLocaleString() : "No data loaded"}</strong>
         </div>
         <div>
           <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Event tally</div>
@@ -115,7 +120,6 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           >
             {/* Basemap gives spatial context under Deck overlays. */}
             <Map
-              reuseMaps
               mapStyle={darkMapStyle}
             >
               {/* Event markers use differentiated icons for fast visual triage. */}
@@ -132,19 +136,21 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                         setSelectedEvent(event);
                       }}
                       style={{
-                        display: "grid",
+                        display: "inline-grid",
                         placeItems: "center",
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        border: "1px solid #1f1f1f",
-                        background: "#050505",
+                        width: 24,
+                        height: 24,
+                        border: "none",
+                        background: "transparent",
+                        padding: 0,
                         color,
-                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
+                        textShadow: "0 0 6px rgba(0,0,0,0.9)",
                         cursor: "pointer"
                       }}
                     >
-                      <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
+                      <span style={{ display: "inline-grid", placeItems: "center", width: 18, height: 18, fontSize: 18, lineHeight: 1 }}>
+                        <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
+                      </span>
                     </button>
                   </Marker>
                 );

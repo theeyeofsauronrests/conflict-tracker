@@ -28,7 +28,7 @@ When to use it:
 
 What you see:
 
-- Symbols for strikes and intercepts
+- Event-specific icons (missile, drone, intercept, unknown target)
 - Force and asset positions (delayed public view)
 - Spatial distribution across the region
 
@@ -36,6 +36,7 @@ How to interact:
 
 - Click an event icon to open details
 - Pan and zoom to inspect local clusters
+- Hovering a clickable entity changes the cursor so you can tell it is interactive
 
 Tip:
 
@@ -58,6 +59,7 @@ Use it for:
 What appears after clicking an event:
 
 - Event type (`STRIKE` or `INTERCEPT`)
+- Matching event icon (same icon family used on the map)
 - Confidence percentage
 - Event time
 - Raw report text

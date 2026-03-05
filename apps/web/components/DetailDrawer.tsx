@@ -63,8 +63,22 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
   return (
     <aside>
       <div style={{ padding: 12, border: "1px solid var(--c2-border)", borderRadius: 8, background: "var(--c2-panel)" }}>
-        <h3 style={{ marginTop: 0 }}>
-          <Icon>{EventIcon ? <EventIcon /> : null}</Icon> {event.eventType.toUpperCase()}
+        <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              width: 22,
+              height: 22,
+              display: "inline-grid",
+              placeItems: "center",
+              flex: "0 0 auto",
+              color: eventColor,
+              fontSize: 20,
+              lineHeight: 1
+            }}
+          >
+            <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
+          </span>
+          {event.eventType.toUpperCase()}
         </h3>
         <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
         <p style={{ color: "var(--c2-muted)" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
