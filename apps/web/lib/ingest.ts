@@ -1,54 +1,81 @@
 import { createDefaultStages, runAgentPipeline } from "@conflict-tracker/agent-pipeline";
-import { createRssIngestPlugin, runIngestPlugins, type IngestPlugin } from "@conflict-tracker/ingest-plugins";
+import { createIranConflictRssPlugin, runIngestPlugins, type IngestPlugin } from "@conflict-tracker/ingest-plugins";
 import { PluginRegistry } from "@conflict-tracker/plugin-registry";
-import { createServiceClient } from "./supabase";
+import { getDbPool } from "./db";
 
-function toWktPoint(lon: number, lat: number): string {
-  // Supabase/PostGIS accepts WKT for geometry columns.
-  return `POINT(${lon} ${lat})`;
-}
-
-export async function runIngestion(openaiApiKey?: string): Promise<number> {
+export async function runIngestion(): Promise<number> {
   // Registry keeps ingest sources pluggable and easy to extend later.
   const registry = new PluginRegistry<IngestPlugin>();
-  registry.register(
-    createRssIngestPlugin({
-      id: "me-conflict-feed",
-      sourceName: "Middle East Conflict Feed",
-      feedUrl: "https://www.aljazeera.com/xml/rss/all.xml"
-    })
-  );
+  registry.register(createIranConflictRssPlugin({ id: "iran-strike-rss-4d", lookbackDays: 4 }));
 
   // End-to-end flow: pull raw items, then turn them into normalized events.
   const rssItems = await runIngestPlugins(registry.list("ingest"));
-  const events = await runAgentPipeline(rssItems, createDefaultStages(openaiApiKey));
+  const events = await runAgentPipeline(rssItems, createDefaultStages());
 
-  const supabase = createServiceClient();
   if (events.length === 0) {
     // Short-circuit avoids empty write operations.
     return 0;
   }
 
-  // Convert shared app shape into DB-ready rows.
-  const payload = events.map((event) => ({
-    event_time: event.eventTime,
-    ingested_at: new Date().toISOString(),
-    confidence: event.confidence,
-    event_type: event.eventType,
-    actor_nationality: event.actorNationality ?? null,
-    target_nationality: event.targetNationality ?? null,
-    blast_radius_m: event.radiusM ?? null,
-    raw_text: event.rawText,
-    dedupe_key: event.dedupeKey,
-    sources: event.sources,
-    geometry: toWktPoint(event.lon, event.lat)
-  }));
-
-  const { error } = await supabase.from("events").upsert(payload, { onConflict: "dedupe_key" });
-  if (error) {
-    // Bubble up so cron route can alert on failures.
-    throw error;
+  const db = getDbPool();
+  let inserted = 0;
+  for (const event of events) {
+    // Upsert by dedupe key keeps recurring reports from creating duplicate map points.
+    const result = await db.query(
+      `INSERT INTO events (
+        event_time,
+        ingested_at,
+        confidence,
+        event_type,
+        actor_nationality,
+        target_nationality,
+        blast_radius_m,
+        raw_text,
+        dedupe_key,
+        sources,
+        geometry
+      )
+      VALUES (
+        $1::timestamptz,
+        now(),
+        $2::double precision,
+        $3::text,
+        $4::text,
+        $5::text,
+        $6::integer,
+        $7::text,
+        $8::text,
+        $9::jsonb,
+        ST_SetSRID(ST_MakePoint($10::double precision, $11::double precision), 4326)
+      )
+      ON CONFLICT (dedupe_key) DO UPDATE SET
+        confidence = EXCLUDED.confidence,
+        actor_nationality = EXCLUDED.actor_nationality,
+        target_nationality = EXCLUDED.target_nationality,
+        blast_radius_m = EXCLUDED.blast_radius_m,
+        raw_text = EXCLUDED.raw_text,
+        sources = EXCLUDED.sources
+      RETURNING (xmax = 0) AS inserted`,
+      [
+        event.eventTime,
+        event.confidence,
+        event.eventType,
+        event.actorNationality ?? null,
+        event.targetNationality ?? null,
+        event.radiusM ?? null,
+        event.rawText,
+        event.dedupeKey,
+        // Explicit JSON serialization keeps driver behavior consistent across runtimes.
+        JSON.stringify(event.sources),
+        event.lon,
+        event.lat
+      ]
+    );
+    // Postgres returns inserted=true only for brand new rows in this run.
+    if (result.rows[0]?.inserted) {
+      inserted += 1;
+    }
   }
 
-  return payload.length;
+  return inserted;
 }

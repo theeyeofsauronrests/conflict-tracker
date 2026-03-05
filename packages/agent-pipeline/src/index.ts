@@ -5,9 +5,9 @@ import { dedupeStage } from "./stages/dedupe";
 import { confidenceStage } from "./stages/confidence";
 import type { AgentStage, PipelineContext } from "./types";
 
-export function createDefaultStages(openaiApiKey?: string): AgentStage[] {
+export function createDefaultStages(): AgentStage[] {
   // The order matters: parse -> clean location -> remove duplicates -> score trust.
-  return [createParseStage(openaiApiKey), geoNormalizeStage, dedupeStage, confidenceStage];
+  return [createParseStage(), geoNormalizeStage, dedupeStage, confidenceStage];
 }
 
 export async function runAgentPipeline(items: RssItem[], stages: AgentStage[]): Promise<Event[]> {

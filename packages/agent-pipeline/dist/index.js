@@ -2,9 +2,9 @@ import { createParseStage } from "./stages/parse";
 import { geoNormalizeStage } from "./stages/geo-normalize";
 import { dedupeStage } from "./stages/dedupe";
 import { confidenceStage } from "./stages/confidence";
-export function createDefaultStages(openaiApiKey) {
+export function createDefaultStages() {
     // The order matters: parse -> clean location -> remove duplicates -> score trust.
-    return [createParseStage(openaiApiKey), geoNormalizeStage, dedupeStage, confidenceStage];
+    return [createParseStage(), geoNormalizeStage, dedupeStage, confidenceStage];
 }
 export async function runAgentPipeline(items, stages) {
     // Context carries state forward from one stage to the next.

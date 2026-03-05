@@ -8,9 +8,9 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 - App: Next.js App Router (`apps/web`) for Vercel
 - Map: Deck.GL + `@accelint/map-toolkit` layer helpers
 - UI: `@accelint/design-toolkit` + `@accelint/icons` with C2 dark theme
-- Storage: Supabase Postgres + PostGIS
-- Pipeline: RSS ingest plugins -> agent pipeline stages -> Supabase upsert
-- Security: no auth, public read-only via delayed views, service-role writes only
+- Storage: local Postgres + PostGIS (`docker-compose.yml`)
+- Pipeline: web RSS scrape plugins -> local heuristic agent stages -> Postgres upsert
+- Security: no auth, API serves delayed views only, write path is cron-only
 
 ## Repository Layout
 
@@ -21,20 +21,16 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 - `packages/agent-pipeline`: stage-based agent pipeline (parse/geo/dedupe/confidence)
 - `packages/map-layers`: deck layer plugin functions (strikes, intercepts, forces, assets, heatmap, density)
 - `infra/schema.sql`: PostGIS schema + delayed public views
-- `infra/policies.sql`: RLS policies + anon grants on delayed views
+- `infra/policies.sql`: local Postgres grants/revokes for delayed-view-only public access
 - `infra/seed/*.json`: seed data
 - `scripts/seed.ts`: seed loader script
+- `scripts/ingest.ts`: manual local ingestion runner
 
 ## Environment Variables
 
 Copy `.env.example` to `.env.local`:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
+- `DATABASE_URL` (or `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`)
 - `CRON_SECRET`
 - `NEXT_PUBLIC_BASE_URL` (optional, defaults `http://localhost:3000`)
 
@@ -44,11 +40,11 @@ Copy `.env.example` to `.env.local`:
    - `pnpm install`
 2. Start local PostGIS:
    - `docker compose up -d`
-3. Apply schema/policies in Supabase SQL editor (or your DB migration flow):
-   - `infra/schema.sql`
-   - `infra/policies.sql`
-4. Seed sample data:
+3. Optional seed sample data:
    - `pnpm seed`
+4. Pull and ingest live Iran strike/intercept reports from last 4 days:
+   - `pnpm ingest`
+   - or `curl -H "x-cron-secret: <CRON_SECRET>" http://localhost:3000/api/cron/ingest`
 5. Run app:
    - `pnpm dev`
 
@@ -57,6 +53,7 @@ Copy `.env.example` to `.env.local`:
 - Vercel cron is configured in `vercel.json`:
   - `0 */6 * * *` -> `GET /api/cron/ingest`
 - Endpoint validates `x-cron-secret` against `CRON_SECRET`.
+- Ingest source is web RSS scraping focused on Iran strike/intercept terms with a 4-day lookback.
 - Handler path: `apps/web/app/api/cron/ingest/route.ts`
 
 ## Plugin System
@@ -79,13 +76,13 @@ Copy `.env.example` to `.env.local`:
 ## Security Model
 
 - No user auth.
-- Public users (anon key) can only `SELECT` from delayed views:
+- Public readers can only query delayed views:
   - `public_events_delayed`
   - `public_force_positions_delayed`
   - `public_asset_positions_delayed`
-- No anon writes (`INSERT/UPDATE/DELETE` blocked by revoke + deny policies).
-- Ingestion route writes server-side with `SUPABASE_SERVICE_ROLE_KEY` only.
-- Analyst notes are local-only in `localStorage` (never persisted in Supabase).
+- No direct writes from public role (`PUBLIC` table privileges revoked).
+- Ingestion route writes server-side through local Postgres connection only.
+- Analyst notes are local-only in `localStorage` (never persisted in DB).
 
 ## Testing
 
@@ -105,4 +102,4 @@ Run all tests:
 - Plugin contracts isolate source ingestion, agent parsing, and visualization to support rapid iteration.
 - Shared `data-model` package prevents schema drift across API, pipeline, and map packages.
 - Delayed read views enforce the 6-hour policy at the database layer (defense in depth beyond client/UI).
-- Service-role write path is isolated to cron ingestion endpoint to minimize attack surface.
+- Local-only cron write path is isolated to a secret-protected endpoint to minimize attack surface.

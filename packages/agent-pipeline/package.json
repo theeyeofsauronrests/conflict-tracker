@@ -13,7 +13,6 @@
   "dependencies": {
     "@accelint/geo": "latest",
     "@conflict-tracker/data-model": "workspace:*",
-    "@conflict-tracker/plugin-registry": "workspace:*",
-    "openai": "^4.75.0"
+    "@conflict-tracker/plugin-registry": "workspace:*"
   }
 }
