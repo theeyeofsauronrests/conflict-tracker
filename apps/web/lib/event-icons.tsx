@@ -31,6 +31,6 @@ export function getEventColor(event: Event): string {
   const visualType = getEventVisualType(event);
   if (visualType === "missile") return "#ef4444";
   if (visualType === "drone") return "#f59e0b";
-  if (visualType === "intercept") return "#3b82f6";
+  if (visualType === "intercept") return "#e5e5e5";
   return "#9ca3af";
 }
