@@ -50,7 +50,7 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
 
   if (!event) {
     return (
-      <div style={{ padding: 12, border: "1px solid #2a3a52", borderRadius: 8, background: "#182332" }}>
+      <div style={{ padding: 12, border: "1px solid var(--c2-border)", borderRadius: 8, background: "var(--c2-panel)" }}>
         Select an event for details.
       </div>
     );
@@ -62,23 +62,28 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
 
   return (
     <aside>
-      <div style={{ padding: 12, border: "1px solid #2a3a52", borderRadius: 8, background: "#182332" }}>
+      <div style={{ padding: 12, border: "1px solid var(--c2-border)", borderRadius: 8, background: "var(--c2-panel)" }}>
         <h3 style={{ marginTop: 0 }}>
           <Icon>{EventIcon ? <EventIcon /> : null}</Icon> {event.eventType.toUpperCase()}
         </h3>
         <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
-        <p style={{ color: "#8ba0c0" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
-        <p style={{ color: "#8ba0c0" }}>Time: {new Date(event.eventTime).toLocaleString()}</p>
+        <p style={{ color: "var(--c2-muted)" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
+        <p style={{ color: "var(--c2-muted)" }}>Time: {new Date(event.eventTime).toLocaleString()}</p>
         {inlineLinks.length > 0 ? (
           <div style={{ marginBottom: 10 }}>
             <strong>Linked report(s):</strong>
             <ul style={{ marginTop: 8, paddingLeft: 18 }}>
               {inlineLinks.map((link) => (
                 <li key={`${link.href}-${link.label}`}>
-                  <a href={link.href} target="_blank" rel="noreferrer" style={{ color: "#8cc8ff" }}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: "#e5e5e5", textDecoration: "underline", textUnderlineOffset: 2 }}
+                  >
                     {link.label || link.href}
                   </a>
-                  {link.provider ? <span style={{ color: "#8ba0c0" }}> ({link.provider})</span> : null}
+                  {link.provider ? <span style={{ color: "var(--c2-muted)" }}> ({link.provider})</span> : null}
                 </li>
               ))}
             </ul>
@@ -90,10 +95,15 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
           <ul style={{ marginTop: 8, paddingLeft: 18 }}>
             {event.sources.map((source) => (
               <li key={`${source.url}-${source.provider}`}>
-                <a href={source.url} target="_blank" rel="noreferrer" style={{ color: "#8cc8ff" }}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#e5e5e5", textDecoration: "underline", textUnderlineOffset: 2 }}
+                >
                   {source.title ?? source.url}
                 </a>
-                <span style={{ color: "#8ba0c0" }}> ({source.provider})</span>
+                <span style={{ color: "var(--c2-muted)" }}> ({source.provider})</span>
               </li>
             ))}
           </ul>
@@ -102,7 +112,13 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
         <textarea
           id="note"
           rows={5}
-          style={{ width: "100%", marginTop: 8, background: "#0d131b", color: "#dfe8f7", borderColor: "#2a3a52" }}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            background: "#050505",
+            color: "var(--c2-text)",
+            borderColor: "var(--c2-border)"
+          }}
           value={note}
           onChange={(e) => {
             const next = e.target.value;

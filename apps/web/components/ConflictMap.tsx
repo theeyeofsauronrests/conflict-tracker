@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import type { PickingInfo } from "@deck.gl/core";
 import Map, { Marker } from "react-map-gl/maplibre";
@@ -27,7 +27,14 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   // Users can "time travel" the map by shrinking or expanding this window.
   const [windowHours, setWindowHours] = useState(72);
+  // Current time in the header helps analysts compare feed recency against "now".
+  const [now, setNow] = useState(() => new Date());
   const Icon = (DT as any).Icon ?? (({ children }: { children: React.ReactNode }) => <span>{children}</span>);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Hide older events based on the selected time window.
   const filteredEvents = useMemo(() => {
@@ -39,17 +46,54 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const layers = useMemo(() => createPrimaryLayers([], forces, assets), [forces, assets]);
   // Start the map focused on the core area of interest.
   const viewport = useMemo(() => getDefaultViewport(), []);
-  const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+  const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
+  // "Data as of" is the freshest timestamp we have across events and positions.
+  const dataAsOf = useMemo(() => {
+    const millis = [
+      ...events.map((event) => new Date(event.ingestedAt ?? event.eventTime).getTime()),
+      ...forces.map((force) => new Date(force.observedTime).getTime()),
+      ...assets.map((asset) => new Date(asset.observedTime).getTime())
+    ].filter((value) => Number.isFinite(value));
+    if (millis.length === 0) return null;
+    return new Date(Math.max(...millis));
+  }, [events, forces, assets]);
 
   return (
     <main style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, padding: 16, alignItems: "start" }}>
+      <header
+        style={{
+          gridColumn: "1 / -1",
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 12,
+          border: "1px solid var(--c2-border)",
+          borderRadius: 8,
+          background: "var(--c2-panel)",
+          padding: "10px 12px"
+        }}
+      >
+        <div>
+          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Current time</div>
+          <strong>{now.toLocaleString()}</strong>
+        </div>
+        <div>
+          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Data as of</div>
+          <strong>{dataAsOf ? dataAsOf.toLocaleString() : "No data loaded"}</strong>
+        </div>
+        <div>
+          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Event tally</div>
+          <strong>
+            {filteredEvents.length} visible / {events.length} total
+          </strong>
+        </div>
+      </header>
       <section style={{ minWidth: 0 }}>
         <TimelineSlider value={windowHours} max={168} onChange={setWindowHours} />
         <div
           style={{
             marginTop: 12,
             height: "75vh",
-            border: "1px solid #2a3a52",
+            border: "1px solid var(--c2-border)",
             borderRadius: 8,
             overflow: "hidden",
             position: "relative",
@@ -61,6 +105,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
             controller
             layers={layers as never}
             style={{ position: "absolute", inset: "0" }}
+            getCursor={({ isHovering }) => (isHovering ? "pointer" : "grab")}
             onClick={(info: PickingInfo) => {
               // We only open the drawer for event-like objects.
               if (info.object && "eventType" in (info.object as Record<string, unknown>)) {
@@ -92,10 +137,11 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                         width: 26,
                         height: 26,
                         borderRadius: 999,
-                        border: "1px solid #0f172a",
-                        background: "#0b1220",
+                        border: "1px solid #1f1f1f",
+                        background: "#050505",
                         color,
-                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)"
+                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
+                        cursor: "pointer"
                       }}
                     >
                       <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
@@ -111,7 +157,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           {Object.entries(nationalityColorMap).map(([nation, color]) => (
             <div key={nation} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 999, background: color }} />
-              <span style={{ color: "#8ba0c0", textTransform: "uppercase", fontSize: 12 }}>{nation}</span>
+              <span style={{ color: "var(--c2-muted)", textTransform: "uppercase", fontSize: 12 }}>{nation}</span>
             </div>
           ))}
         </div>

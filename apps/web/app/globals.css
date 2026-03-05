@@ -1,9 +1,9 @@
 :root {
-  --c2-bg: #0d131b;
-  --c2-panel: #182332;
-  --c2-border: #2a3a52;
-  --c2-text: #dfe8f7;
-  --c2-muted: #8ba0c0;
+  --c2-bg: #000000;
+  --c2-panel: #0a0a0a;
+  --c2-border: #222222;
+  --c2-text: #f5f5f5;
+  --c2-muted: #a3a3a3;
 }
 
 * {
@@ -14,7 +14,7 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background: radial-gradient(circle at 20% 20%, #1a2538 0%, var(--c2-bg) 45%, #090d14 100%);
+  background: radial-gradient(circle at 20% 20%, #151515 0%, var(--c2-bg) 50%, #000000 100%);
   color: var(--c2-text);
   font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
