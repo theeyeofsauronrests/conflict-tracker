@@ -11,6 +11,7 @@
     "typecheck": "turbo run typecheck",
     "seed": "pnpm --filter @conflict-tracker/web seed",
     "ingest": "pnpm --filter @conflict-tracker/web ingest",
+    "ingest:backfill": "pnpm --filter @conflict-tracker/web exec tsx ../../scripts/backfill-iran-week.ts",
     "local:up": "./scripts/local-up.sh"
   },
   "devDependencies": {

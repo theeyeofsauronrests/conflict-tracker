@@ -25,6 +25,7 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 - `infra/seed/*.json`: seed data
 - `scripts/seed.ts`: seed loader script
 - `scripts/ingest.ts`: manual local ingestion runner
+- `scripts/backfill-iran-week.ts`: 7-day multi-query backfill runner for larger local datasets
 
 ## Environment Variables
 
@@ -49,7 +50,9 @@ Fast path:
 4. Pull and ingest live Iran strike/intercept reports from last 4 days:
    - `pnpm ingest`
    - or `curl -H "x-cron-secret: <CRON_SECRET>" http://localhost:3000/api/cron/ingest`
-5. Run app:
+5. Optional: backfill a larger 7-day dataset (targeting 100+ events):
+   - `pnpm ingest:backfill`
+6. Run app:
    - `pnpm dev`
 
 ## Cron Ingestion

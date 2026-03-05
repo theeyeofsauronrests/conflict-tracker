@@ -13,8 +13,8 @@ export function createInterceptsLayer(events: Event[]) {
     radiusMaxPixels: 12,
     filled: true,
     stroked: true,
-    getFillColor: () => [59, 130, 246, 190],
-    getLineColor: () => [30, 58, 138, 255],
+    getFillColor: () => [229, 229, 229, 190],
+    getLineColor: () => [82, 82, 82, 255],
     lineWidthMinPixels: 1.5,
     pickable: true
   });

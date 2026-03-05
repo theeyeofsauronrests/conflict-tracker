@@ -68,6 +68,16 @@ pnpm ingest
 
 This pulls RSS/web sources, filters for Iran strike/intercept signals, and stores results locally.
 
+## 6b) (Optional) Backfill a larger 7-day dataset
+
+If you want a fuller operating picture (for example 100+ events), run:
+
+```bash
+pnpm ingest:backfill
+```
+
+This runs multiple RSS searches and inserts a much larger set of deduped events from the last 7 days.
+
 ## 7) Start the app
 
 ```bash
