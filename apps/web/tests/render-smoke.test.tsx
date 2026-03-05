@@ -6,6 +6,12 @@ vi.mock("@deck.gl/react", () => ({
   default: () => <div data-testid="deck" />
 }));
 
+vi.mock("react-map-gl/maplibre", () => ({
+  __esModule: true,
+  default: ({ children }: { children: ReactNode }) => <div data-testid="basemap">{children}</div>,
+  Marker: ({ children }: { children: ReactNode }) => <div data-testid="marker">{children}</div>
+}));
+
 vi.mock("@conflict-tracker/map-layers", () => ({
   createPrimaryLayers: () => [],
   getDefaultViewport: () => ({ longitude: 44.3661, latitude: 33.3152, zoom: 4, pitch: 0, bearing: 0 })
@@ -18,7 +24,10 @@ vi.mock("@accelint/design-toolkit", () => ({
 }));
 
 vi.mock("@accelint/icons", () => ({
-  Target: () => <span data-testid="target-icon" />
+  Target: () => <span data-testid="target-icon" />,
+  Missile: () => <span data-testid="missile-icon" />,
+  Uas: () => <span data-testid="uas-icon" />,
+  InterceptPoint: () => <span data-testid="intercept-icon" />
 }));
 
 import { ConflictMap } from "@/components/ConflictMap";

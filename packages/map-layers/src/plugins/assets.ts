@@ -1,14 +1,20 @@
-import { SymbolLayer } from "@accelint/map-toolkit/deckgl/symbol-layer";
+import { ScatterplotLayer } from "@deck.gl/layers";
 import type { AssetPosition } from "@conflict-tracker/data-model";
 
 export function createAssetsLayer(assets: AssetPosition[]) {
-  // Asset layer uses a simpler symbol set to reduce visual clutter.
-  return new SymbolLayer({
+  // Assets are rendered as compact neutral markers.
+  return new ScatterplotLayer<AssetPosition>({
     id: "assets-layer",
     data: assets,
     getPosition: (d: AssetPosition) => [d.lon, d.lat],
-    getSidc: () => "SFGPEV----K",
-    getSize: () => 14,
+    getRadius: () => 6500,
+    radiusMinPixels: 3,
+    radiusMaxPixels: 9,
+    filled: true,
+    stroked: true,
+    getFillColor: () => [234, 179, 8, 180],
+    getLineColor: () => [133, 77, 14, 255],
+    lineWidthMinPixels: 1,
     pickable: true
   });
 }

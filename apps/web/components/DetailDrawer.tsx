@@ -3,12 +3,10 @@
 import React, { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import * as DT from "@accelint/design-toolkit";
-import * as Icons from "@accelint/icons";
 import type { Event } from "@conflict-tracker/data-model";
+import { getEventColor, getEventIcon } from "@/lib/event-icons";
 
-const Drawer = (DT as any).Drawer ?? (({ children }: { children: ReactNode }) => <aside>{children}</aside>);
 const Icon = (DT as any).Icon ?? (({ children }: { children: ReactNode }) => <span>{children}</span>);
-const TargetIcon = (Icons as any).Target;
 
 interface DetailDrawerProps {
   event: Event | null;
@@ -21,6 +19,27 @@ function getNoteKey(eventId: string): string {
 
 export function DetailDrawer({ event }: DetailDrawerProps) {
   const [note, setNote] = useState("");
+
+  const parseInlineLinks = (text: string) => {
+    const links: Array<{ href: string; label: string; provider?: string }> = [];
+    const anchorRegex = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>(?:\s|&nbsp;)*(?:<font[^>]*>(.*?)<\/font>)?/gi;
+    let match: RegExpExecArray | null = anchorRegex.exec(text);
+    while (match) {
+      const href = match[1] ?? "";
+      const label = (match[2] ?? "").replace(/<[^>]+>/g, "").trim();
+      if (!href) {
+        match = anchorRegex.exec(text);
+        continue;
+      }
+      links.push({
+        href,
+        label,
+        provider: match[3]?.replace(/<[^>]+>/g, "").trim()
+      });
+      match = anchorRegex.exec(text);
+    }
+    return links;
+  };
 
   useEffect(() => {
     if (!event) return;
@@ -37,15 +56,48 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
     );
   }
 
+  const EventIcon = getEventIcon(event);
+  const eventColor = getEventColor(event);
+  const inlineLinks = parseInlineLinks(event.rawText);
+
   return (
-    <Drawer>
+    <aside>
       <div style={{ padding: 12, border: "1px solid #2a3a52", borderRadius: 8, background: "#182332" }}>
         <h3 style={{ marginTop: 0 }}>
-          <Icon>{TargetIcon ? <TargetIcon /> : null}</Icon> {event.eventType.toUpperCase()}
+          <Icon>{EventIcon ? <EventIcon /> : null}</Icon> {event.eventType.toUpperCase()}
         </h3>
+        <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
         <p style={{ color: "#8ba0c0" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
         <p style={{ color: "#8ba0c0" }}>Time: {new Date(event.eventTime).toLocaleString()}</p>
-        <p>{event.rawText}</p>
+        {inlineLinks.length > 0 ? (
+          <div style={{ marginBottom: 10 }}>
+            <strong>Linked report(s):</strong>
+            <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+              {inlineLinks.map((link) => (
+                <li key={`${link.href}-${link.label}`}>
+                  <a href={link.href} target="_blank" rel="noreferrer" style={{ color: "#8cc8ff" }}>
+                    {link.label || link.href}
+                  </a>
+                  {link.provider ? <span style={{ color: "#8ba0c0" }}> ({link.provider})</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <p>{event.rawText.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim()}</p>
+        <div style={{ marginTop: 10 }}>
+          <strong>Sources:</strong>
+          <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+            {event.sources.map((source) => (
+              <li key={`${source.url}-${source.provider}`}>
+                <a href={source.url} target="_blank" rel="noreferrer" style={{ color: "#8cc8ff" }}>
+                  {source.title ?? source.url}
+                </a>
+                <span style={{ color: "#8ba0c0" }}> ({source.provider})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
         <label htmlFor="note">Local analyst note (browser-only)</label>
         <textarea
           id="note"
@@ -60,6 +112,6 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
           }}
         />
       </div>
-    </Drawer>
+    </aside>
   );
 }
