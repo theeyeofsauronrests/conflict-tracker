@@ -11,10 +11,9 @@
     "lint": "echo 'lint skipped for map-layers'"
   },
   "dependencies": {
-    "@accelint/map-toolkit": "latest",
-    "@deck.gl/core": "^9.1.0",
-    "@deck.gl/layers": "^9.1.0",
-    "@deck.gl/aggregation-layers": "^9.1.0",
+    "@deck.gl/core": "9.2.10",
+    "@deck.gl/layers": "9.2.10",
+    "@deck.gl/aggregation-layers": "9.2.10",
     "@conflict-tracker/data-model": "workspace:*"
   }
 }

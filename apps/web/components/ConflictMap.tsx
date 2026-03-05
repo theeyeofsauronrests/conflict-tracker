@@ -3,9 +3,13 @@
 import React, { useMemo, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import type { PickingInfo } from "@deck.gl/core";
+import Map, { Marker } from "react-map-gl/maplibre";
 import { createPrimaryLayers, getDefaultViewport } from "@conflict-tracker/map-layers";
 import type { Event, ForcePosition, AssetPosition } from "@conflict-tracker/data-model";
+import * as DT from "@accelint/design-toolkit";
 import { nationalityColorMap } from "@/lib/colors";
+import { ensureDeckGlShaderHooks } from "@/lib/deckShaderHooks";
+import { getEventColor, getEventIcon } from "@/lib/event-icons";
 import { DetailDrawer } from "./DetailDrawer";
 import { TimelineSlider } from "./TimelineSlider";
 
@@ -16,10 +20,14 @@ interface ConflictMapProps {
 }
 
 export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
+  // Ensure Deck shader hooks exist before any layer models compile.
+  ensureDeckGlShaderHooks();
+
   // Keep the clicked event in local UI state so the drawer can show details.
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   // Users can "time travel" the map by shrinking or expanding this window.
   const [windowHours, setWindowHours] = useState(72);
+  const Icon = (DT as any).Icon ?? (({ children }: { children: React.ReactNode }) => <span>{children}</span>);
 
   // Hide older events based on the selected time window.
   const filteredEvents = useMemo(() => {
@@ -28,26 +36,75 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   }, [events, windowHours]);
 
   // Build render layers once per relevant data change.
-  const layers = useMemo(() => createPrimaryLayers(filteredEvents, forces, assets), [filteredEvents, forces, assets]);
+  const layers = useMemo(() => createPrimaryLayers([], forces, assets), [forces, assets]);
   // Start the map focused on the core area of interest.
   const viewport = useMemo(() => getDefaultViewport(), []);
+  const darkMapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
   return (
-    <main style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, padding: 16 }}>
-      <section>
+    <main style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, padding: 16, alignItems: "start" }}>
+      <section style={{ minWidth: 0 }}>
         <TimelineSlider value={windowHours} max={168} onChange={setWindowHours} />
-        <div style={{ marginTop: 12, height: "75vh", border: "1px solid #2a3a52", borderRadius: 8, overflow: "hidden" }}>
+        <div
+          style={{
+            marginTop: 12,
+            height: "75vh",
+            border: "1px solid #2a3a52",
+            borderRadius: 8,
+            overflow: "hidden",
+            position: "relative",
+            zIndex: 1
+          }}
+        >
           <DeckGL
             initialViewState={viewport}
             controller
             layers={layers as never}
+            style={{ position: "absolute", inset: "0" }}
             onClick={(info: PickingInfo) => {
               // We only open the drawer for event-like objects.
               if (info.object && "eventType" in (info.object as Record<string, unknown>)) {
                 setSelectedEvent(info.object as Event);
               }
             }}
-          />
+          >
+            {/* Basemap gives spatial context under Deck overlays. */}
+            <Map
+              reuseMaps
+              mapStyle={darkMapStyle}
+            >
+              {/* Event markers use differentiated icons for fast visual triage. */}
+              {filteredEvents.slice(0, 500).map((event) => {
+                const EventIcon = getEventIcon(event);
+                const color = getEventColor(event);
+                return (
+                  <Marker key={event.dedupeKey} longitude={event.lon} latitude={event.lat} anchor="center">
+                    <button
+                      type="button"
+                      aria-label={`Select ${event.eventType} event`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEvent(event);
+                      }}
+                      style={{
+                        display: "grid",
+                        placeItems: "center",
+                        width: 26,
+                        height: 26,
+                        borderRadius: 999,
+                        border: "1px solid #0f172a",
+                        background: "#0b1220",
+                        color,
+                        boxShadow: "0 0 0 1px rgba(255,255,255,0.08)"
+                      }}
+                    >
+                      <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
+                    </button>
+                  </Marker>
+                );
+              })}
+            </Map>
+          </DeckGL>
         </div>
         {/* Legend explains nationality color coding for quick scanning. */}
         <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -59,7 +116,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           ))}
         </div>
       </section>
-      <aside>
+      <aside style={{ position: "relative", zIndex: 3 }}>
         <DetailDrawer event={selectedEvent} />
       </aside>
     </main>

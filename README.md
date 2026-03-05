@@ -28,13 +28,17 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local`:
+Copy `.env.example` to `apps/web/.env.local`:
 
 - `DATABASE_URL` (or `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`)
 - `CRON_SECRET`
 - `NEXT_PUBLIC_BASE_URL` (optional, defaults `http://localhost:3000`)
 
 ## Run Locally
+
+Fast path:
+
+- `pnpm local:up` (starts DB, seeds, ingests, and launches dev server)
 
 1. Install dependencies:
    - `pnpm install`

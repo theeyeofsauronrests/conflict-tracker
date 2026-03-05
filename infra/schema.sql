@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   event_time TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  visible_at TIMESTAMPTZ GENERATED ALWAYS AS (event_time + interval '6 hours') STORED,
+  visible_at TIMESTAMPTZ NOT NULL,
   confidence DOUBLE PRECISION NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
   event_type TEXT NOT NULL CHECK (event_type IN ('strike', 'intercept')),
   actor_nationality TEXT,
@@ -18,6 +18,23 @@ CREATE TABLE IF NOT EXISTS events (
   sources JSONB NOT NULL DEFAULT '[]'::jsonb,
   geometry GEOMETRY(Point, 4326) NOT NULL
 );
+
+CREATE OR REPLACE FUNCTION set_event_visible_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Keep delay enforcement derived from event_time on every write.
+  NEW.visible_at := NEW.event_time + interval '6 hours';
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_events_visible_at ON events;
+CREATE TRIGGER trg_events_visible_at
+BEFORE INSERT OR UPDATE OF event_time ON events
+FOR EACH ROW
+EXECUTE FUNCTION set_event_visible_at();
 
 CREATE INDEX IF NOT EXISTS idx_events_geom ON events USING GIST (geometry);
 CREATE INDEX IF NOT EXISTS idx_events_event_time ON events (event_time DESC);

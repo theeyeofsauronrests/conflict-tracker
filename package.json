@@ -10,7 +10,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "seed": "pnpm --filter @conflict-tracker/web seed",
-    "ingest": "pnpm --filter @conflict-tracker/web ingest"
+    "ingest": "pnpm --filter @conflict-tracker/web ingest",
+    "local:up": "./scripts/local-up.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -20,8 +21,7 @@
   },
   "pnpm": {
     "overrides": {
-      "loglayer": "^9.1.0",
-      "@deck.gl/widgets": "9.1.15"
+      "loglayer": "^9.1.0"
     }
   }
 }

@@ -37,10 +37,20 @@ This starts local Postgres/PostGIS for map data.
 Copy the example environment file:
 
 ```bash
-cp .env.example .env.local
+cp .env.example apps/web/.env.local
 ```
 
-Open `.env.local` and set `CRON_SECRET` to any private value you choose.
+Open `apps/web/.env.local` and set `CRON_SECRET` to any private value you choose.
+
+## Quick all-in-one startup
+
+If you want one command instead of manual steps, run:
+
+```bash
+pnpm local:up
+```
+
+This will start DB, seed, ingest, and launch the app automatically.
 
 ## 5) (Optional) Load sample data
 
