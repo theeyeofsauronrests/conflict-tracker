@@ -9,7 +9,8 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "seed": "pnpm --filter @conflict-tracker/web seed"
+    "seed": "pnpm --filter @conflict-tracker/web seed",
+    "ingest": "pnpm --filter @conflict-tracker/web ingest"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -1,33 +1,15 @@
-ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE force_positions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE asset_positions ENABLE ROW LEVEL SECURITY;
+-- Local Postgres privilege model (no Supabase roles required).
+-- Public readers can only query delayed views, never source tables.
 
-REVOKE ALL ON events FROM anon, authenticated;
-REVOKE ALL ON force_positions FROM anon, authenticated;
-REVOKE ALL ON assets FROM anon, authenticated;
-REVOKE ALL ON asset_positions FROM anon, authenticated;
+REVOKE ALL ON TABLE events FROM PUBLIC;
+REVOKE ALL ON TABLE force_positions FROM PUBLIC;
+REVOKE ALL ON TABLE assets FROM PUBLIC;
+REVOKE ALL ON TABLE asset_positions FROM PUBLIC;
 
-GRANT SELECT ON public_events_delayed TO anon;
-GRANT SELECT ON public_force_positions_delayed TO anon;
-GRANT SELECT ON public_asset_positions_delayed TO anon;
+REVOKE ALL ON TABLE public_events_delayed FROM PUBLIC;
+REVOKE ALL ON TABLE public_force_positions_delayed FROM PUBLIC;
+REVOKE ALL ON TABLE public_asset_positions_delayed FROM PUBLIC;
 
-CREATE POLICY events_deny_write_anon ON events
-FOR ALL TO anon
-USING (false)
-WITH CHECK (false);
-
-CREATE POLICY force_positions_deny_write_anon ON force_positions
-FOR ALL TO anon
-USING (false)
-WITH CHECK (false);
-
-CREATE POLICY assets_deny_write_anon ON assets
-FOR ALL TO anon
-USING (false)
-WITH CHECK (false);
-
-CREATE POLICY asset_positions_deny_write_anon ON asset_positions
-FOR ALL TO anon
-USING (false)
-WITH CHECK (false);
+GRANT SELECT ON TABLE public_events_delayed TO PUBLIC;
+GRANT SELECT ON TABLE public_force_positions_delayed TO PUBLIC;
+GRANT SELECT ON TABLE public_asset_positions_delayed TO PUBLIC;

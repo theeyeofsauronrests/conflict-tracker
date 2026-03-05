@@ -14,6 +14,11 @@ export interface RssPluginConfig {
   feedUrl: string;
 }
 
+interface IranConflictConfig {
+  id: string;
+  lookbackDays: number;
+}
+
 export function createRssIngestPlugin(config: RssPluginConfig): IngestPlugin {
   return {
     id: config.id,
@@ -44,6 +49,41 @@ export function createRssIngestPlugin(config: RssPluginConfig): IngestPlugin {
         )
         // Keep each run bounded to avoid oversized pipeline batches.
         .slice(0, 200);
+    }
+  };
+}
+
+function isIranConflictSignal(text: string): boolean {
+  return /iran/i.test(text) && /(strike|strikes|intercept|interception|missile|drone|air defense|attack)/i.test(text);
+}
+
+export function createIranConflictRssPlugin(config: IranConflictConfig): IngestPlugin {
+  const feedUrl =
+    "https://news.google.com/rss/search?q=iran+strike+OR+iran+intercept+OR+iran+missile+OR+iran+drone&hl=en-US&gl=US&ceid=US:en";
+  const cutoff = Date.now() - config.lookbackDays * 24 * 60 * 60 * 1000;
+
+  return {
+    id: config.id,
+    kind: "ingest",
+    featureFlag: "rssIngest",
+    description: `Iran strike/intercept scrape from web RSS in the last ${config.lookbackDays} days`,
+    run: async () => {
+      // This feed provides article links from many outlets without requiring an API key.
+      const baseItems = await createRssIngestPlugin({
+        id: config.id,
+        sourceName: "Google News (Iran conflict search)",
+        feedUrl
+      }).run();
+
+      return baseItems
+        .filter((item) => {
+          const publishedAt = new Date(item.publishedAt).getTime();
+          if (Number.isNaN(publishedAt) || publishedAt < cutoff) {
+            return false;
+          }
+          return isIranConflictSignal(`${item.title} ${item.text}`);
+        })
+        .slice(0, 150);
     }
   };
 }

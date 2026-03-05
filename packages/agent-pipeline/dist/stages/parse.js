@@ -1,52 +1,42 @@
-import OpenAI from "openai";
 function classifyEventType(text) {
     // Keep this simple and transparent for now: keyword-based routing.
     return /intercept/i.test(text) ? "intercept" : "strike";
 }
-export function createParseStage(openaiApiKey) {
+const iranLocationHints = [
+    { pattern: /\btehran\b/i, lon: 51.389, lat: 35.6892 },
+    { pattern: /\bisfahan\b/i, lon: 51.6776, lat: 32.6546 },
+    { pattern: /\btabriz\b/i, lon: 46.2919, lat: 38.0962 },
+    { pattern: /\bashdod\b/i, lon: 34.6553, lat: 31.8044 },
+    { pattern: /\bhaifa\b/i, lon: 34.9896, lat: 32.794 },
+    { pattern: /\biraq\b/i, lon: 43.6793, lat: 33.2232 },
+    { pattern: /\bsyria\b/i, lon: 36.2765, lat: 33.5138 }
+];
+function inferPoint(text) {
+    for (const hint of iranLocationHints) {
+        if (hint.pattern.test(text)) {
+            return { lon: hint.lon, lat: hint.lat };
+        }
+    }
+    // Fallback keeps unknown reports near the main Iran theater.
+    return { lon: 53.688, lat: 32.4279 };
+}
+export function createParseStage() {
     return {
         id: "parse",
         run: async (ctx) => {
-            if (!openaiApiKey) {
-                // Local fallback path so pipeline still works without model access.
-                ctx.parsed = ctx.rssItems.map((item) => ({
+            // Local-only parse path with deterministic heuristics and no external model calls.
+            ctx.parsed = ctx.rssItems.map((item) => {
+                const mergedText = `${item.title} ${item.text}`;
+                const point = inferPoint(mergedText);
+                return {
                     rss: item,
-                    eventType: classifyEventType(item.text),
+                    eventType: classifyEventType(mergedText),
                     eventTime: item.publishedAt,
                     rawText: item.text,
-                    lon: 35.2137,
-                    lat: 31.7683
-                }));
-                return ctx;
-            }
-            // Model-assisted extraction path for richer signal parsing.
-            const client = new OpenAI({ apiKey: openaiApiKey });
-            const parsed = [];
-            for (const item of ctx.rssItems) {
-                const completion = await client.responses.create({
-                    model: "gpt-4.1-mini",
-                    input: [
-                        {
-                            role: "system",
-                            content: "Extract OSINT event_type(strike|intercept), event_time ISO8601, lon, lat from text."
-                        },
-                        { role: "user", content: `${item.title}\n${item.text}` }
-                    ],
-                    temperature: 0
-                });
-                const output = completion.output_text;
-                // Keep coordinate extraction forgiving; pipeline normalizes later.
-                const matched = output.match(/(-?\d+\.\d+).+(-?\d+\.\d+)/s);
-                parsed.push({
-                    rss: item,
-                    eventType: classifyEventType(output),
-                    eventTime: item.publishedAt,
-                    rawText: item.text,
-                    lon: matched ? Number(matched[1]) : 35.2137,
-                    lat: matched ? Number(matched[2]) : 31.7683
-                });
-            }
-            ctx.parsed = parsed;
+                    lon: point.lon,
+                    lat: point.lat
+                };
+            });
             return ctx;
         }
     };

@@ -1,23 +1,24 @@
 import { z } from "zod";
 
-// Split env validation by use-case so each caller asks only for what it needs.
-const supabaseEnvSchema = z.object({
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  SUPABASE_ANON_KEY: z.string().min(1)
+const dbEnvSchema = z.object({
+  DATABASE_URL: z.string().min(1).optional(),
+  PGHOST: z.string().default("localhost"),
+  PGPORT: z.coerce.number().int().positive().default(54322),
+  PGDATABASE: z.string().default("conflict_tracker"),
+  PGUSER: z.string().default("postgres"),
+  PGPASSWORD: z.string().default("postgres")
 });
 
 const cronEnvSchema = z.object({
-  CRON_SECRET: z.string().min(1),
-  OPENAI_API_KEY: z.string().optional()
+  CRON_SECRET: z.string().min(1)
 });
 
-export function getSupabaseEnv() {
-  // Fail fast at startup if required database settings are missing.
-  return supabaseEnvSchema.parse(process.env);
+export function getDbEnv() {
+  // Validate once so local dev defaults are always predictable.
+  return dbEnvSchema.parse(process.env);
 }
 
 export function getCronEnv() {
-  // Cron path has its own minimal secret requirements.
+  // Cron path only needs one shared secret for trusted triggers.
   return cronEnvSchema.parse(process.env);
 }
