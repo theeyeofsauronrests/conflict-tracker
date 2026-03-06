@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface TimelineSliderProps {
   timestamps: number[];
@@ -26,10 +26,11 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
   const [dragMode, setDragMode] = useState<"none" | "move" | "resize-left" | "resize-right">("none");
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartRange, setDragStartRange] = useState({ start: safeStartIndex, end: safeEndIndex });
+  const [dragPxPerIndex, setDragPxPerIndex] = useState(1);
   const windowWidth = Math.max(0, safeEndIndex - safeStartIndex);
   const leftPct = rangeMax > 0 ? (safeStartIndex / rangeMax) * 100 : 0;
   const widthPct = rangeMax > 0 ? (windowWidth / rangeMax) * 100 : 100;
-  const pxPerIndex = useMemo(() => {
+  const getPxPerIndex = useCallback(() => {
     const width = trackRef.current?.getBoundingClientRect().width ?? 1;
     return width / Math.max(1, rangeMax);
   }, [rangeMax]);
@@ -47,7 +48,8 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
 
     const onMouseMove = (event: MouseEvent) => {
       const deltaPx = event.clientX - dragStartX;
-      const deltaIndex = Math.round(deltaPx / pxPerIndex);
+      const effectivePxPerIndex = Math.max(1, dragPxPerIndex);
+      const deltaIndex = Math.round(deltaPx / effectivePxPerIndex);
       const original = dragStartRange;
 
       if (dragMode === "move") {
@@ -80,7 +82,7 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [clampRange, dragMode, dragStartRange, dragStartX, hasData, onChange, pxPerIndex, rangeMax]);
+  }, [clampRange, dragMode, dragPxPerIndex, dragStartRange, dragStartX, hasData, onChange, rangeMax]);
 
   if (!hasData) {
     return (
@@ -114,6 +116,7 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
             event.preventDefault();
             setDragMode("move");
             setDragStartX(event.clientX);
+            setDragPxPerIndex(getPxPerIndex());
             setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
           }}
           style={{
@@ -137,6 +140,7 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
               event.stopPropagation();
               setDragMode("resize-left");
               setDragStartX(event.clientX);
+              setDragPxPerIndex(getPxPerIndex());
               setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
             }}
             style={{
@@ -159,6 +163,7 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
               event.stopPropagation();
               setDragMode("resize-right");
               setDragStartX(event.clientX);
+              setDragPxPerIndex(getPxPerIndex());
               setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
             }}
             style={{
