@@ -6,7 +6,7 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 
 - Monorepo: `pnpm` + `turbo`
 - App: Next.js App Router (`apps/web`) for Vercel
-- Map: MapLibre basemap with projected icon overlays for events
+- Map: MapLibre basemap with projected event icons and pulsing curved actor-to-target flow arcs
 - UI: `@accelint/design-toolkit` + `@accelint/icons` with C2 dark theme
 - Storage: local Postgres + PostGIS (`docker-compose.yml`)
 - Pipeline: web RSS scrape plugins -> local heuristic agent stages -> Postgres upsert

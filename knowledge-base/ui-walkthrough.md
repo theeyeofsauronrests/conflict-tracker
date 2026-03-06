@@ -32,6 +32,7 @@ When to use it:
 What you see:
 
 - Event-specific icons (missile, drone, intercept, unknown target)
+- Curved pulsing actor-to-target flow arcs for nationality-level directionality
 - Spatial distribution across the region
 
 How to interact:
