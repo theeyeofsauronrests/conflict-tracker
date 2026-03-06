@@ -203,7 +203,7 @@ function inferActorAndTarget(text: string, eventType: "strike" | "intercept", lo
   // Single mention fallback: only assign actor when not explicitly negated.
   if (!actorNationality && mentionNationalities.length === 1) {
     const onlyMention = mentionNationalities[0];
-    if (!negatedActorNationalities.has(onlyMention) && onlyMention !== targetNationality) {
+    if (onlyMention && !negatedActorNationalities.has(onlyMention) && onlyMention !== targetNationality) {
       actorNationality = onlyMention;
     }
   }

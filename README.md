@@ -101,6 +101,9 @@ Fast path:
 - No direct writes from public role (`PUBLIC` table privileges revoked).
 - Ingestion route writes server-side through local Postgres connection only.
 - Analyst notes are local-only in `localStorage` (never persisted in DB).
+- Server data loading no longer builds internal fetch URLs from request host headers (avoids host-header SSRF patterns).
+- Cron secret checks use timing-safe comparison.
+- In-app markdown link rendering allows only `http/https` URLs and downgrades unsafe URLs to plain text.
 
 ## Testing
 
