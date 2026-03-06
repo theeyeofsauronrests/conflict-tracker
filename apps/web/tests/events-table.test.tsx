@@ -5,9 +5,11 @@ import type { Event } from "@conflict-tracker/data-model";
 import { EventsTableView } from "@/components/EventsTableView";
 
 const pushMock = vi.fn();
+const searchParamsMock = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock })
+  useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => searchParamsMock
 }));
 
 const sampleEvents: Event[] = [
@@ -42,6 +44,7 @@ const sampleEvents: Event[] = [
 describe("EventsTableView", () => {
   beforeEach(() => {
     pushMock.mockReset();
+    searchParamsMock.delete("bookmarked");
     window.localStorage.clear();
   });
 
@@ -62,7 +65,18 @@ describe("EventsTableView", () => {
     expect(screen.getByText(/1 bookmarked locally/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText(/Bookmarked only/i));
-    expect(screen.getByText(/Showing 1 of 2 events/i)).toBeInTheDocument();
     expect(screen.getByText(/Strike report/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Intercept report/i)).not.toBeInTheDocument();
+  });
+
+  it("supports bookmarked deep-link filter from query params", () => {
+    searchParamsMock.set("bookmarked", "1");
+    window.localStorage.setItem("ct-bookmarks-v1", JSON.stringify(["intercept-1"]));
+
+    render(<EventsTableView events={sampleEvents} />);
+
+    expect(screen.getByText(/Showing 1 of 2 events/i)).toBeInTheDocument();
+    expect(screen.getByText(/Intercept report/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Strike report/i)).not.toBeInTheDocument();
   });
 });

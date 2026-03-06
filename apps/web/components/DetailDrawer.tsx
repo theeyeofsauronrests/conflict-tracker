@@ -1,12 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import * as DT from "@accelint/design-toolkit";
 import type { Event } from "@conflict-tracker/data-model";
 import { getEventColor, getEventIcon } from "@/lib/event-icons";
-
-const Icon = (DT as any).Icon ?? (({ children }: { children: ReactNode }) => <span>{children}</span>);
+import { Badge, Button, DrawerPanel, Icon } from "@/lib/ui";
 
 interface DetailDrawerProps {
   event: Event | null;
@@ -19,6 +16,18 @@ function getNoteKey(eventId: string): string {
   return `ct-note-${eventId}`;
 }
 
+function sanitizeExternalUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function DetailDrawer({ event, isBookmarked, onToggleBookmark }: DetailDrawerProps) {
   const [note, setNote] = useState("");
 
@@ -27,7 +36,7 @@ export function DetailDrawer({ event, isBookmarked, onToggleBookmark }: DetailDr
     const anchorRegex = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>(?:\s|&nbsp;)*(?:<font[^>]*>(.*?)<\/font>)?/gi;
     let match: RegExpExecArray | null = anchorRegex.exec(text);
     while (match) {
-      const href = match[1] ?? "";
+      const href = sanitizeExternalUrl(match[1] ?? "");
       const label = (match[2] ?? "").replace(/<[^>]+>/g, "").trim();
       if (!href) {
         match = anchorRegex.exec(text);
@@ -52,131 +61,120 @@ export function DetailDrawer({ event, isBookmarked, onToggleBookmark }: DetailDr
 
   if (!event) {
     return (
-      <div style={{ padding: 12, border: "1px solid var(--c2-border)", borderRadius: 8, background: "var(--c2-panel)" }}>
-        Select an event for details.
-      </div>
+      <DrawerPanel className="c2-detail-panel c2-detail-empty">
+        <div className="c2-detail-empty-icon">◎</div>
+        <h3>Event Details</h3>
+        <p>Select an event on the map or in a cluster list to inspect confidence, sources, and metadata.</p>
+      </DrawerPanel>
     );
   }
 
   const EventIcon = getEventIcon(event);
   const eventColor = getEventColor(event);
   const inlineLinks = parseInlineLinks(event.rawText);
+  const safeSources = event.sources
+    .map((source) => ({ ...source, safeUrl: sanitizeExternalUrl(source.url) }))
+    .filter((source) => source.safeUrl);
 
   return (
     <aside>
-      <div style={{ padding: 12, border: "1px solid var(--c2-border)", borderRadius: 8, background: "var(--c2-panel)" }}>
-        <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              width: 22,
-              height: 22,
-              display: "inline-grid",
-              placeItems: "center",
-              flex: "0 0 auto",
-              color: eventColor,
-              fontSize: 20,
-              lineHeight: 1
-            }}
-          >
-            <Icon>{EventIcon ? <EventIcon width={20} height={20} /> : null}</Icon>
-          </span>
-          {event.eventType.toUpperCase()}
-        </h3>
-        <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
-        <div style={{ marginBottom: 10 }}>
-          <button
+      <DrawerPanel className="c2-detail-panel">
+        <header className="c2-detail-header">
+          <div className="c2-detail-title-row">
+            <span className="c2-detail-event-icon" style={{ color: eventColor }}>
+              <Icon>{EventIcon ? <EventIcon width={18} height={18} /> : null}</Icon>
+            </span>
+            <h3>{event.eventType.toUpperCase()}</h3>
+          </div>
+          <div className="c2-detail-badges">
+            <Badge className="c2-pill">{event.eventType}</Badge>
+            <Badge className="c2-pill">confidence {(event.confidence * 100).toFixed(0)}%</Badge>
+            <Badge className="c2-pill">sources {event.sources.length}</Badge>
+          </div>
+        </header>
+
+        <div className="c2-detail-actions">
+          <Button
             type="button"
             onClick={() => onToggleBookmark(event.dedupeKey)}
-            style={{
-              border: "1px solid var(--c2-border)",
-              borderRadius: 6,
-              background: isBookmarked ? "#1f2937" : "#0f172a",
-              color: "var(--c2-text)",
-              padding: "6px 10px",
-              cursor: "pointer"
-            }}
+            className={`c2-btn ${isBookmarked ? "is-active" : ""}`}
           >
             {isBookmarked ? "Remove bookmark" : "Bookmark event"}
-          </button>
+          </Button>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-          <span
-            style={{
-              border: "1px solid #7ee7ff",
-              borderRadius: 999,
-              padding: "2px 8px",
-              fontSize: 12,
-              textTransform: "uppercase",
-              color: "#d9f6ff"
-            }}
-          >
+
+        <section className="c2-detail-section">
+          <div className="c2-detail-badges">
+            <Badge className="c2-pill actor-pill">
             Actor: {event.actorNationality ?? "unknown"}
-          </span>
-          <span
-            style={{
-              border: "1px solid #ffd27c",
-              borderRadius: 999,
-              padding: "2px 8px",
-              fontSize: 12,
-              textTransform: "uppercase",
-              color: "#ffe3b0"
-            }}
-          >
+            </Badge>
+            <Badge className="c2-pill target-pill">
             Target: {event.targetNationality ?? "unknown"}
-          </span>
-        </div>
-        <p style={{ color: "var(--c2-muted)" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
-        <p style={{ color: "var(--c2-muted)" }}>Time: {new Date(event.eventTime).toLocaleString()}</p>
+            </Badge>
+          </div>
+          <div className="c2-detail-kv">
+            <div>
+              <span>Time</span>
+              <strong>{new Date(event.eventTime).toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Dedupe Key</span>
+              <strong>{event.dedupeKey.slice(0, 16)}...</strong>
+            </div>
+          </div>
+        </section>
+
         {inlineLinks.length > 0 ? (
-          <div style={{ marginBottom: 10 }}>
-            <strong>Linked report(s):</strong>
-            <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+          <section className="c2-detail-section">
+            <h4>Linked report(s)</h4>
+            <ul className="c2-detail-list">
               {inlineLinks.map((link) => (
                 <li key={`${link.href}-${link.label}`}>
                   <a
                     href={link.href}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ color: "#e5e5e5", textDecoration: "underline", textUnderlineOffset: 2 }}
+                    className="c2-detail-link"
                   >
                     {link.label || link.href}
                   </a>
-                  {link.provider ? <span style={{ color: "var(--c2-muted)" }}> ({link.provider})</span> : null}
+                  {link.provider ? <span className="c2-detail-provider"> ({link.provider})</span> : null}
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         ) : null}
-        <p>{event.rawText.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim()}</p>
-        <div style={{ marginTop: 10 }}>
-          <strong>Sources:</strong>
-          <ul style={{ marginTop: 8, paddingLeft: 18 }}>
-            {event.sources.map((source) => (
+
+        <section className="c2-detail-section">
+          <h4>Summary</h4>
+          <p className="c2-detail-summary">{event.rawText.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim()}</p>
+        </section>
+
+        <section className="c2-detail-section">
+          <h4>Sources</h4>
+          <ul className="c2-detail-list">
+            {safeSources.map((source) => (
               <li key={`${source.url}-${source.provider}`}>
                 <a
-                  href={source.url}
+                  href={source.safeUrl ?? source.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#e5e5e5", textDecoration: "underline", textUnderlineOffset: 2 }}
+                  className="c2-detail-link"
                 >
                   {source.title ?? source.url}
                 </a>
-                <span style={{ color: "var(--c2-muted)" }}> ({source.provider})</span>
+                <span className="c2-detail-provider"> ({source.provider})</span>
               </li>
             ))}
           </ul>
-        </div>
-        <label htmlFor="note">Local analyst note (browser-only)</label>
+        </section>
+
+        <section className="c2-detail-section">
+          <h4>Local analyst note</h4>
         <textarea
           id="note"
           rows={5}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            background: "#050505",
-            color: "var(--c2-text)",
-            borderColor: "var(--c2-border)"
-          }}
+          className="c2-note-input"
           value={note}
           onChange={(e) => {
             const next = e.target.value;
@@ -185,7 +183,8 @@ export function DetailDrawer({ event, isBookmarked, onToggleBookmark }: DetailDr
             window.localStorage.setItem(getNoteKey(event.dedupeKey), next);
           }}
         />
-      </div>
+        </section>
+      </DrawerPanel>
     </aside>
   );
 }

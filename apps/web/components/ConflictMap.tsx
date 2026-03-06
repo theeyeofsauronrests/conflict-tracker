@@ -2,15 +2,16 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import BaseMap from "react-map-gl/maplibre";
-import { useSearchParams } from "next/navigation";
-import { getDefaultViewport } from "@conflict-tracker/map-layers";
+import DeckGL from "@deck.gl/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createOptionalLayers, createPrimaryLayers, createSavedViewport, getDefaultViewport } from "@conflict-tracker/map-layers";
 import type { Event as ConflictEvent, ForcePosition, AssetPosition } from "@conflict-tracker/data-model";
-import * as DT from "@accelint/design-toolkit";
 import { nationalityColorMap } from "@/lib/colors";
 import { getEventColor, getEventIcon } from "@/lib/event-icons";
 import { useBookmarks } from "@/lib/use-bookmarks";
 import { DetailDrawer } from "./DetailDrawer";
 import { TimelineSlider } from "./TimelineSlider";
+import { Button, Icon } from "@/lib/ui";
 
 interface ConflictMapProps {
   events: ConflictEvent[];
@@ -36,6 +37,39 @@ interface EventArc {
   from: { lon: number; lat: number };
   to: { lon: number; lat: number };
   confidence: number;
+}
+
+function CurrentTimeStatusChip() {
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="c2-status-chip">
+      <span>Current Time</span>
+      <strong suppressHydrationWarning>{now.toLocaleString()}</strong>
+    </div>
+  );
+}
+
+function LocalizedDateTime({ value, fallback }: { value: Date | null; fallback: string }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!value) return <strong>{fallback}</strong>;
+
+  return <strong suppressHydrationWarning>{mounted ? value.toLocaleString() : fallback}</strong>;
+}
+
+function toMillis(value: string): number {
+  const millis = new Date(value).getTime();
+  return Number.isFinite(millis) ? millis : Number.NaN;
 }
 
 const NATIONALITY_ANCHORS: Record<string, { lon: number; lat: number }> = {
@@ -177,6 +211,7 @@ function buildClusters(events: ConflictEvent[], zoom: number): ClusterBucket[] {
 }
 
 export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const selectedEventFromQuery = searchParams?.get("event") ?? null;
 
@@ -186,23 +221,13 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   // Timeline range is tracked as indices into available event timestamps.
   const [startIndex, setStartIndex] = useState(0);
   const [endIndex, setEndIndex] = useState(0);
-  // Current time in the header helps analysts compare feed recency against "now".
-  const [now, setNow] = useState<Date | null>(null);
   const [showArcs, setShowArcs] = useState(true);
-  // We only format locale-dependent timestamps after mount to avoid hydration mismatch.
-  const [mounted, setMounted] = useState(false);
+  const [showPluginOverlays, setShowPluginOverlays] = useState(true);
+  const [showAnalysisOverlays, setShowAnalysisOverlays] = useState(false);
   const [viewState, setViewState] = useState(() => getDefaultViewport());
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
-  const Icon = (DT as any).Icon ?? (({ children }: { children: React.ReactNode }) => <span>{children}</span>);
   const bookmarks = useBookmarks();
-
-  useEffect(() => {
-    setMounted(true);
-    setNow(new Date());
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     try {
@@ -221,6 +246,33 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
       // Ignore storage access failures.
     }
   }, [showArcs]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("conflict-tracker-viewport");
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as { longitude: number; latitude: number; zoom: number; pitch: number; bearing: number };
+      if (
+        Number.isFinite(parsed.longitude) &&
+        Number.isFinite(parsed.latitude) &&
+        Number.isFinite(parsed.zoom) &&
+        Number.isFinite(parsed.pitch) &&
+        Number.isFinite(parsed.bearing)
+      ) {
+        setViewState(parsed);
+      }
+    } catch {
+      // Ignore malformed saved viewport payloads.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("conflict-tracker-viewport", JSON.stringify(createSavedViewport(viewState)));
+    } catch {
+      // Ignore storage access failures.
+    }
+  }, [viewState]);
 
   useEffect(() => {
     const element = mapContainerRef.current;
@@ -268,16 +320,20 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
     };
   }, []);
 
+  // Parse event timestamps once per feed update and reuse in timeline filtering.
+  const parsedEventTimeline = useMemo(() => {
+    return events
+      .map((event) => ({ event, eventTimeMillis: toMillis(event.eventTime) }))
+      .filter((entry) => Number.isFinite(entry.eventTimeMillis));
+  }, [events]);
+
   const availableTimestamps = useMemo(() => {
     const unique = new Set<number>();
-    for (const event of events) {
-      const millis = new Date(event.eventTime).getTime();
-      if (Number.isFinite(millis)) {
-        unique.add(millis);
-      }
+    for (const entry of parsedEventTimeline) {
+      unique.add(entry.eventTimeMillis);
     }
     return Array.from(unique).sort((a, b) => a - b);
-  }, [events]);
+  }, [parsedEventTimeline]);
 
   useEffect(() => {
     if (availableTimestamps.length === 0) {
@@ -325,14 +381,24 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const endTs = availableTimestamps[endIndex] ?? Number.POSITIVE_INFINITY;
   // Show only events inside the selected record-bounded timeline range.
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      const eventTs = new Date(event.eventTime).getTime();
-      if (!Number.isFinite(eventTs)) return false;
-      return eventTs >= startTs && eventTs <= endTs;
-    });
-  }, [events, startTs, endTs]);
+    return parsedEventTimeline
+      .filter((entry) => entry.eventTimeMillis >= startTs && entry.eventTimeMillis <= endTs)
+      .map((entry) => entry.event);
+  }, [parsedEventTimeline, startTs, endTs]);
   const clusters = useMemo(() => buildClusters(filteredEvents, viewState.zoom ?? 4), [filteredEvents, viewState.zoom]);
   const eventArcs = useMemo(() => buildEventArcs(filteredEvents), [filteredEvents]);
+  // Keep layer plugin outputs in sync with the visible timeline data, even while using a maplibre-first renderer.
+  const primaryLayers = useMemo(() => createPrimaryLayers(filteredEvents, forces, assets), [filteredEvents, forces, assets]);
+  const optionalLayers = useMemo(() => createOptionalLayers(filteredEvents), [filteredEvents]);
+  const mapOverlayLayers = useMemo(() => {
+    // Keep event icons/clusters as the primary visual language, while still integrating plugin layer output.
+    const alwaysOn = primaryLayers.filter((layer) => {
+      const id = String((layer as { id?: string }).id ?? "");
+      return id !== "strikes-layer" && id !== "intercepts-layer";
+    });
+    if (!showPluginOverlays) return [];
+    return showAnalysisOverlays ? [...alwaysOn, ...optionalLayers] : alwaysOn;
+  }, [optionalLayers, primaryLayers, showAnalysisOverlays, showPluginOverlays]);
   const expandedCluster = useMemo(
     () => clusters.find((cluster) => cluster.id === expandedClusterId) ?? null,
     [clusters, expandedClusterId]
@@ -346,7 +412,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   // "Data as of" is the freshest timestamp we have across events and positions.
   const dataAsOf = useMemo(() => {
     const millis = [
-      ...events.map((event) => new Date(event.ingestedAt ?? event.eventTime).getTime()),
+      ...events.map((event) => toMillis(event.ingestedAt ?? event.eventTime)),
       ...forces.map((force) => new Date(force.observedTime).getTime()),
       ...assets.map((asset) => new Date(asset.observedTime).getTime())
     ].filter((value) => Number.isFinite(value));
@@ -355,84 +421,75 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   }, [events, forces, assets]);
 
   return (
-    <main style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, padding: 16, alignItems: "start" }}>
-      <header
-        style={{
-          gridColumn: "1 / -1",
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 12,
-          border: "1px solid var(--c2-border)",
-          borderRadius: 8,
-          background: "var(--c2-panel)",
-          padding: "10px 12px"
-        }}
-      >
-        <div>
-          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Current time</div>
-          <strong suppressHydrationWarning>{mounted && now ? now.toLocaleString() : "Loading..."}</strong>
+    <main className="c2-workspace">
+      <section className="c2-status-strip">
+        <CurrentTimeStatusChip />
+        <div className="c2-status-chip">
+          <span>Data As Of</span>
+          <LocalizedDateTime value={dataAsOf} fallback="No data loaded" />
         </div>
-        <div>
-          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Data as of</div>
-          <strong suppressHydrationWarning>{mounted && dataAsOf ? dataAsOf.toLocaleString() : "No data loaded"}</strong>
-        </div>
-        <div>
-          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Event tally</div>
+        <div className="c2-status-chip">
+          <span>Event Tally</span>
           <strong>
             {filteredEvents.length} visible / {events.length} total
           </strong>
         </div>
-        <div>
-          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Bookmarks</div>
-          <strong>{bookmarks.ready ? bookmarks.bookmarkCount : 0} local</strong>
+        <div className="c2-status-chip">
+          <span>Bookmarks</span>
+          <Button
+            type="button"
+            className="c2-status-link"
+            onClick={() => router.push("/table?bookmarked=1")}
+            aria-label="Open table view filtered to bookmarked events"
+          >
+            {bookmarks.ready ? bookmarks.bookmarkCount : 0} local
+          </Button>
         </div>
-      </header>
-      <section style={{ minWidth: 0 }}>
-        <TimelineSlider
-          timestamps={availableTimestamps}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          onChange={(nextStartIndex, nextEndIndex) => {
-            setStartIndex(nextStartIndex);
-            setEndIndex(nextEndIndex);
-          }}
-        />
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            border: "1px solid var(--c2-border)",
-            borderRadius: 8,
-            background: "var(--c2-panel)",
-            padding: "8px 10px"
-          }}
-        >
-          <input
-            id="show-actor-arcs"
-            type="checkbox"
-            checked={showArcs}
-            onChange={(event) => setShowArcs(event.target.checked)}
-          />
-          <label htmlFor="show-actor-arcs" style={{ fontSize: 13, color: "var(--c2-text)", cursor: "pointer" }}>
-            Show actor-to-target arcs
-          </label>
-        </div>
-        <div
-          ref={mapContainerRef}
-          style={{
-            marginTop: 12,
-            // Keep map tall enough for analysis while preserving space for legend/details on common laptop screens.
-            height: "clamp(380px, 62vh, 620px)",
-            border: "1px solid var(--c2-border)",
-            borderRadius: 8,
-            overflow: "hidden",
-            position: "relative",
-            zIndex: 1,
-            touchAction: "none"
-          }}
-        >
+      </section>
+
+      <section className="c2-main-grid">
+        <div className="c2-map-column">
+          <div className="c2-control-bar">
+            <TimelineSlider
+              timestamps={availableTimestamps}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              onChange={(nextStartIndex, nextEndIndex) => {
+                setStartIndex(nextStartIndex);
+                setEndIndex(nextEndIndex);
+              }}
+            />
+            <div className="c2-layer-controls">
+              <span className="c2-layer-label">Layers</span>
+              <Button
+                type="button"
+                aria-pressed={showArcs}
+                onClick={() => setShowArcs((value) => !value)}
+                className={`c2-toggle-btn ${showArcs ? "is-active" : ""}`}
+              >
+                Actor arcs
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={showPluginOverlays}
+                onClick={() => setShowPluginOverlays((value) => !value)}
+                className={`c2-toggle-btn ${showPluginOverlays ? "is-active" : ""}`}
+              >
+                Operational overlays
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={showAnalysisOverlays}
+                disabled={!showPluginOverlays}
+                onClick={() => setShowAnalysisOverlays((value) => !value)}
+                className={`c2-toggle-btn ${showAnalysisOverlays ? "is-active" : ""}`}
+              >
+                Analytic density
+              </Button>
+            </div>
+          </div>
+
+          <div ref={mapContainerRef} className="c2-map-shell">
           <BaseMap
             longitude={viewState.longitude}
             latitude={viewState.latitude}
@@ -456,6 +513,12 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
             dragRotate={false}
             doubleClickZoom
             cursor="grab"
+          />
+          <DeckGL
+            viewState={viewState}
+            controller={false}
+            layers={mapOverlayLayers}
+            style={{ position: "absolute", inset: "0", zIndex: "1", pointerEvents: "none" }}
           />
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
             {showArcs ? (
@@ -516,7 +579,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                 const screen = projectToScreen(event.lon, event.lat, viewState, effectiveViewportSize);
                 const bookmarked = bookmarks.isBookmarked(event.dedupeKey);
                 return (
-                  <button
+                  <Button
                     key={event.dedupeKey}
                     type="button"
                     aria-label={`Select ${event.eventType} event`}
@@ -553,7 +616,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                     <span style={{ display: "inline-grid", placeItems: "center", width: 18, height: 18, lineHeight: 1 }}>
                       <Icon>{EventIcon ? <EventIcon width={18} height={18} /> : <span style={{ fontSize: 10 }}>•</span>}</Icon>
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             {clusters
@@ -561,7 +624,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
               .map((cluster) => {
                 const screen = projectToScreen(cluster.lon, cluster.lat, viewState, effectiveViewportSize);
                 return (
-                  <button
+                  <Button
                     key={`cluster-${cluster.id}`}
                     type="button"
                     aria-label={`Expand cluster with ${cluster.events.length} events`}
@@ -588,51 +651,21 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                     }}
                   >
                     {cluster.events.length}
-                  </button>
+                  </Button>
                 );
               })}
           </div>
           {expandedCluster ? (
             <div
               onClick={() => setExpandedClusterId(null)}
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 5,
-                background: "rgba(0, 0, 0, 0.55)",
-                display: "grid",
-                placeItems: "center",
-                padding: 16
-              }}
+              className="c2-cluster-modal-backdrop"
             >
-              <div
-                onClick={(event) => event.stopPropagation()}
-                style={{
-                  width: "min(520px, 100%)",
-                  maxHeight: "80%",
-                  overflow: "auto",
-                  background: "var(--c2-panel)",
-                  border: "1px solid var(--c2-border)",
-                  borderRadius: 10,
-                  padding: 12
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div onClick={(event) => event.stopPropagation()} className="c2-cluster-modal">
+                <div className="c2-cluster-modal-head">
                   <strong>{expandedCluster.events.length} events in this cluster</strong>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedClusterId(null)}
-                    style={{
-                      border: "1px solid var(--c2-border)",
-                      background: "#111827",
-                      color: "var(--c2-text)",
-                      borderRadius: 6,
-                      padding: "4px 8px",
-                      cursor: "pointer"
-                    }}
-                  >
+                  <Button type="button" onClick={() => setExpandedClusterId(null)} className="c2-btn">
                     Close
-                  </button>
+                  </Button>
                 </div>
                 {expandedCluster.events
                   .slice()
@@ -641,24 +674,14 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                     const EventIcon = getEventIcon(event);
                     const color = getEventColor(event);
                     return (
-                      <button
+                      <Button
                         key={`cluster-row-${event.dedupeKey}`}
                         type="button"
                         onClick={() => {
                           setSelectedEvent(event);
                           setExpandedClusterId(null);
                         }}
-                        style={{
-                          width: "100%",
-                          textAlign: "left",
-                          marginBottom: 8,
-                          border: "1px solid var(--c2-border)",
-                          background: "#0a0f16",
-                          color: "var(--c2-text)",
-                          borderRadius: 8,
-                          padding: "8px 10px",
-                          cursor: "pointer"
-                        }}
+                        className="c2-cluster-item"
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ color, display: "inline-grid", placeItems: "center", width: 18, height: 18 }}>
@@ -670,38 +693,41 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                         <div style={{ marginTop: 4, color: "var(--c2-muted)", fontSize: 12 }}>
                           {event.actorNationality ?? "unknown"} {" -> "} {event.targetNationality ?? "unknown"}
                         </div>
-                      </button>
+                      </Button>
                     );
                   })}
               </div>
             </div>
           ) : null}
-        </div>
-        {/* Legend explains nationality color coding for quick scanning. */}
-        <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 999, border: "1px solid #7ee7ff" }} />
-            <span style={{ color: "var(--c2-muted)", textTransform: "uppercase", fontSize: 12 }}>Actor match</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 999, border: "1px solid #ffd27c" }} />
-            <span style={{ color: "var(--c2-muted)", textTransform: "uppercase", fontSize: 12 }}>Target match</span>
-          </div>
-          {Object.entries(nationalityColorMap).map(([nation, color]) => (
-            <div key={nation} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 999, background: color }} />
-              <span style={{ color: "var(--c2-muted)", textTransform: "uppercase", fontSize: 12 }}>{nation}</span>
+          <div className="c2-map-legend">
+            <div className="c2-legend-item">
+              <span style={{ border: "1px solid #7ee7ff" }} className="c2-legend-dot" />
+              <span>Actor match</span>
             </div>
-          ))}
+            <div className="c2-legend-item">
+              <span style={{ border: "1px solid #ffd27c" }} className="c2-legend-dot" />
+              <span>Target match</span>
+            </div>
+            {Object.entries(nationalityColorMap).map(([nation, color]) => (
+              <div key={nation} className="c2-legend-item">
+                <span style={{ background: color }} className="c2-legend-dot" />
+                <span>{nation}</span>
+              </div>
+            ))}
+            <div className="c2-legend-meta">
+              Layer plugins: {mapOverlayLayers.length} active / {primaryLayers.length + optionalLayers.length} available
+            </div>
+          </div>
         </div>
+        <aside className="c2-detail-column">
+          <DetailDrawer
+            event={selectedEvent}
+            isBookmarked={selectedEvent ? bookmarks.isBookmarked(selectedEvent.dedupeKey) : false}
+            onToggleBookmark={bookmarks.toggleBookmark}
+          />
+        </aside>
       </section>
-      <aside style={{ position: "relative", zIndex: 3 }}>
-        <DetailDrawer
-          event={selectedEvent}
-          isBookmarked={selectedEvent ? bookmarks.isBookmarked(selectedEvent.dedupeKey) : false}
-          onToggleBookmark={bookmarks.toggleBookmark}
-        />
-      </aside>
     </main>
   );
 }
