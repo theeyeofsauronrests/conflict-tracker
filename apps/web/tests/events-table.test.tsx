@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Event } from "@conflict-tracker/data-model";
 import { EventsTableView } from "@/components/EventsTableView";
 
@@ -40,6 +40,11 @@ const sampleEvents: Event[] = [
 ];
 
 describe("EventsTableView", () => {
+  beforeEach(() => {
+    pushMock.mockReset();
+    window.localStorage.clear();
+  });
+
   it("filters by type and routes to map on row action", () => {
     render(<EventsTableView events={sampleEvents} />);
 
@@ -48,5 +53,16 @@ describe("EventsTableView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /View on map/i }));
     expect(pushMock).toHaveBeenCalledWith("/?event=intercept-1");
+  });
+
+  it("toggles bookmarks and supports bookmarked-only filter", () => {
+    render(<EventsTableView events={sampleEvents} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Toggle bookmark for strike-1/i }));
+    expect(screen.getByText(/1 bookmarked locally/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/Bookmarked only/i));
+    expect(screen.getByText(/Showing 1 of 2 events/i)).toBeInTheDocument();
+    expect(screen.getByText(/Strike report/i)).toBeInTheDocument();
   });
 });

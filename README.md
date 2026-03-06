@@ -13,6 +13,7 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 - Security: no auth, API serves delayed views only, write path is cron-only
 - Timeline UX: interactive start/end slider constrained to available event records only
 - Cluster UX: click cluster count bubble to open a list modal and select individual events
+- Local analyst state: notes and bookmarks are browser-only (never written to database)
 
 ## Repository Layout
 
