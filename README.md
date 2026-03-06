@@ -6,8 +6,9 @@ OSINT-only operational map for conflict monitoring in West Asia and nearby regio
 
 - Monorepo: `pnpm` + `turbo`
 - App: Next.js App Router (`apps/web`) for Vercel
-- Map: MapLibre basemap with projected event icons at target coordinates and toggleable pulsing arcs from actor nation anchors
-- UI: `@accelint/design-toolkit` + `@accelint/icons` with C2 dark theme
+- Map: MapLibre basemap with projected event icons at target coordinates, toggleable pulsing arcs, and plugin-backed layer contracts from `packages/map-layers`
+- UI: map-first Accelint C2 workspace (compact top nav, status strip, integrated timeline control bar, contextual analysis panel) powered by `@accelint/design-toolkit` + `@accelint/icons`
+- UI wrappers: shared toolkit wrapper components in `apps/web/lib/ui.tsx` (`Tabs`, `Table`, `DrawerPanel`, `Button`, `Badge`, `Input`, `Checkbox`, `Icon`)
 - Storage: local Postgres + PostGIS (`docker-compose.yml`)
 - Pipeline: web RSS scrape plugins -> local heuristic agent stages -> Postgres upsert
 - Security: no auth, API serves delayed views only, write path is cron-only
@@ -18,11 +19,12 @@ OSINT-only operational map for conflict monitoring in West Asia and nearby regio
 ## Repository Layout
 
 - `apps/web`: Next.js app, map UI, API routes, cron endpoint
+- `apps/web/lib/docs.ts` + `apps/web/lib/markdown-renderer.tsx`: knowledge-base loading and markdown rendering for the in-app docs page
 - `packages/data-model`: shared Zod schemas + TS types
 - `packages/plugin-registry`: typed plugin registry + feature flags
 - `packages/ingest-plugins`: RSS plugin interface + reference implementation
 - `packages/agent-pipeline`: stage-based agent pipeline (parse/geo/dedupe/confidence)
-- `packages/map-layers`: deck layer plugin functions (strikes, intercepts, forces, assets, heatmap, density)
+- `packages/map-layers`: layer plugin factories (strikes, intercepts, forces, assets, heatmap, density) with `SymbolLayer`-style contracts for 2D maps
 - `infra/schema.sql`: PostGIS schema + delayed public views
 - `infra/policies.sql`: local Postgres grants/revokes for delayed-view-only public access
 - `infra/seed/*.json`: seed data
@@ -86,7 +88,8 @@ Fast path:
 ### Add map layer plugin
 
 - Add layer factory under `packages/map-layers/src/plugins`.
-- Export from `packages/map-layers/src/index.ts` and include in app toggles.
+- Prefer `SymbolLayer` contract inputs (`getPosition`, `getSidc`, `getSize`) so plugins stay consistent.
+- Export from `packages/map-layers/src/index.ts` and include in app toggles or app-level layer orchestration.
 
 ## Security Model
 
@@ -117,5 +120,46 @@ Run all tests:
 
 - Plugin contracts isolate source ingestion, agent parsing, and visualization to support rapid iteration.
 - Shared `data-model` package prevents schema drift across API, pipeline, and map packages.
+- Toolkit wrapper components centralize DevTK adoption while keeping test/local fallbacks stable.
+- Map view rendering keeps timestamp parsing and range filtering memoized to reduce hot-path allocations during timeline interaction.
 - Delayed read views enforce the 6-hour policy at the database layer (defense in depth beyond client/UI).
 - Local-only cron write path is isolated to a secret-protected endpoint to minimize attack surface.
+
+## Delivery Playbook (Reusable)
+
+This project converged faster once we used strict milestone gating and forced quality passes between milestones.
+
+### Core loop
+
+1. Implement one milestone only.
+2. Run quality pass and regression tests.
+3. Resolve issues immediately (do not stack known defects).
+4. Update docs in the same change set.
+5. Prep PR with concise validation metrics.
+
+### Major pivots that improved outcomes
+
+- Prioritize interaction reliability over feature count:
+  - clickable map entities, clear hover cursor, cluster drill-down modal, stable zoom behavior.
+- Prefer simplification over exposing internals:
+  - hide/rename controls that are ambiguous to operators (for example plugin-facing toggles).
+- Keep map-first hierarchy:
+  - compact status strip + integrated timeline controls + contextual detail panel.
+- Enforce design-system primitives over ad hoc UI:
+  - use DevTK wrappers for tabs, controls, badges, panels, and tables.
+- Treat attribution as probabilistic:
+  - avoid false actor assignment when wording is negated or uncertain.
+
+### Data quality gates
+
+- Sample live rows after parser changes (not just unit tests).
+- Track before/after counts for known bad patterns.
+- Reparse historical rows when heuristics change.
+- Prefer unknown actor/target over confident-but-wrong attribution.
+
+### PR readiness checklist
+
+- Tests pass in affected packages.
+- Any backfill/reparse command and scope documented.
+- Before/after metrics included for user-visible data quality fixes.
+- Known limitations explicitly listed (for example duplicate story normalization).
