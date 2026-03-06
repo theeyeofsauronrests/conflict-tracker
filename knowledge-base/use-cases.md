@@ -12,11 +12,11 @@ Workflow:
 2. Open the map.
 3. Drag timeline start/end bounds to cover the last 24 hours of available records.
 4. Click high-confidence events and read source text.
-5. Add local note for events that need follow-up.
+5. Bookmark events that need follow-up and add local note.
 
 Output:
 
-- A short list of notable strikes/intercepts for the day.
+- A short list of notable strikes/intercepts for the day (with bookmarked priorities).
 
 ## 2) Incident triage
 

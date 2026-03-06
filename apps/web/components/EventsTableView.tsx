@@ -4,6 +4,7 @@ import React from "react";
 import type { Event } from "@conflict-tracker/data-model";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useBookmarks } from "@/lib/use-bookmarks";
 
 type SortField = "eventTime" | "eventType" | "confidence" | "actorNationality" | "targetNationality";
 type SortDirection = "asc" | "desc";
@@ -23,8 +24,10 @@ export function EventsTableView({ events }: EventsTableViewProps) {
   const [nationalityFilter, setNationalityFilter] = useState("all");
   const [fromFilter, setFromFilter] = useState("");
   const [toFilter, setToFilter] = useState("");
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("eventTime");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const bookmarks = useBookmarks();
 
   const nationalityOptions = useMemo(() => {
     const values = new Set<string>();
@@ -52,6 +55,10 @@ export function EventsTableView({ events }: EventsTableViewProps) {
         }
       }
 
+      if (bookmarkedOnly && !bookmarks.bookmarkIds.has(event.dedupeKey)) {
+        return false;
+      }
+
       const eventMillis = toMillis(event.eventTime);
       if (eventMillis < fromMillis || eventMillis > toMillisValue) {
         return false;
@@ -71,7 +78,7 @@ export function EventsTableView({ events }: EventsTableViewProps) {
     });
 
     return sorted;
-  }, [events, eventTypeFilter, nationalityFilter, fromFilter, toFilter, sortField, sortDirection]);
+  }, [events, eventTypeFilter, nationalityFilter, fromFilter, toFilter, bookmarkedOnly, sortField, sortDirection, bookmarks.bookmarkIds]);
 
   function onSort(field: SortField) {
     if (sortField === field) {
@@ -110,7 +117,7 @@ export function EventsTableView({ events }: EventsTableViewProps) {
           marginBottom: 12,
           display: "grid",
           gap: 10,
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))"
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))"
         }}
       >
         <label style={{ display: "grid", gap: 4 }}>
@@ -144,16 +151,21 @@ export function EventsTableView({ events }: EventsTableViewProps) {
           <span style={{ color: "var(--c2-muted)", fontSize: 12 }}>To (Date/Time)</span>
           <input type="datetime-local" value={toFilter} onChange={(e) => setToFilter(e.target.value)} style={controlStyle} />
         </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}>
+          <input type="checkbox" checked={bookmarkedOnly} onChange={(e) => setBookmarkedOnly(e.target.checked)} />
+          <span style={{ color: "var(--c2-text)", fontSize: 13 }}>Bookmarked only</span>
+        </label>
       </section>
 
       <section style={{ marginBottom: 8, color: "var(--c2-muted)" }}>
-        Showing {filteredAndSorted.length} of {events.length} events
+        Showing {filteredAndSorted.length} of {events.length} events ({bookmarks.ready ? bookmarks.bookmarkCount : 0} bookmarked locally)
       </section>
 
       <div style={{ overflowX: "auto", border: "1px solid var(--c2-border)", borderRadius: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
           <thead>
             <tr style={{ background: "#101010" }}>
+              <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>Bookmark</th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>Open</th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
                 <button type="button" onClick={() => onSort("eventTime")} style={buttonStyle}>
@@ -189,6 +201,16 @@ export function EventsTableView({ events }: EventsTableViewProps) {
                 <td style={{ padding: "10px 12px" }}>
                   <button
                     type="button"
+                    onClick={() => bookmarks.toggleBookmark(event.dedupeKey)}
+                    style={{ ...buttonStyle, minWidth: 40 }}
+                    aria-label={`Toggle bookmark for ${event.dedupeKey}`}
+                  >
+                    {bookmarks.isBookmarked(event.dedupeKey) ? "★" : "☆"}
+                  </button>
+                </td>
+                <td style={{ padding: "10px 12px" }}>
+                  <button
+                    type="button"
                     onClick={() => router.push(`/?event=${encodeURIComponent(event.dedupeKey)}`)}
                     style={buttonStyle}
                   >
@@ -205,7 +227,7 @@ export function EventsTableView({ events }: EventsTableViewProps) {
             ))}
             {filteredAndSorted.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: "14px 12px", color: "var(--c2-muted)" }}>
+                <td colSpan={8} style={{ padding: "14px 12px", color: "var(--c2-muted)" }}>
                   No events match the current filters.
                 </td>
               </tr>

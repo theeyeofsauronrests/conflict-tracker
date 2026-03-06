@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface TimelineSliderProps {
   timestamps: number[];
@@ -33,11 +33,14 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
     const width = trackRef.current?.getBoundingClientRect().width ?? 1;
     return width / Math.max(1, rangeMax);
   }, [rangeMax]);
-  const clampRange = (nextStart: number, nextEnd: number): { start: number; end: number } => {
-    const start = Math.min(Math.max(0, nextStart), rangeMax);
-    const end = Math.min(Math.max(start, nextEnd), rangeMax);
-    return { start, end };
-  };
+  const clampRange = useCallback(
+    (nextStart: number, nextEnd: number): { start: number; end: number } => {
+      const start = Math.min(Math.max(0, nextStart), rangeMax);
+      const end = Math.min(Math.max(start, nextEnd), rangeMax);
+      return { start, end };
+    },
+    [rangeMax]
+  );
 
   useEffect(() => {
     if (!hasData || dragMode === "none") return;
@@ -77,7 +80,7 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [dragMode, dragStartRange, dragStartX, hasData, onChange, pxPerIndex, rangeMax, safeEndIndex, safeStartIndex]);
+  }, [clampRange, dragMode, dragStartRange, dragStartX, hasData, onChange, pxPerIndex, rangeMax]);
 
   if (!hasData) {
     return (

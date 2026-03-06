@@ -72,6 +72,7 @@ What appears after clicking an event:
 - Confidence percentage
 - Event time
 - Raw report text
+- Local bookmark toggle for quick revisit
 
 ## Local analyst note field
 
@@ -90,6 +91,20 @@ Use it for:
 - Verification status
 - Contradictions
 - Follow-up tasks
+
+## Bookmarks (browser-only)
+
+You can bookmark events without sending anything to the database:
+
+- In map detail drawer, click `Bookmark event`
+- In table view, use the star column to add/remove bookmarks
+- Use `Bookmarked only` in table filters to focus your short list
+
+Important behavior:
+
+- Bookmarks are stored in your browser only
+- Bookmarks are tied to event dedupe keys
+- Bookmarks do not sync between different browsers/devices
 
 ## Suggested analysis flow in UI
 

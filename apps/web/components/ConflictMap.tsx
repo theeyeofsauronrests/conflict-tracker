@@ -8,6 +8,7 @@ import type { Event as ConflictEvent, ForcePosition, AssetPosition } from "@conf
 import * as DT from "@accelint/design-toolkit";
 import { nationalityColorMap } from "@/lib/colors";
 import { getEventColor, getEventIcon } from "@/lib/event-icons";
+import { useBookmarks } from "@/lib/use-bookmarks";
 import { DetailDrawer } from "./DetailDrawer";
 import { TimelineSlider } from "./TimelineSlider";
 
@@ -194,6 +195,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState<ViewportSize>({ width: 0, height: 0 });
   const Icon = (DT as any).Icon ?? (({ children }: { children: React.ReactNode }) => <span>{children}</span>);
+  const bookmarks = useBookmarks();
 
   useEffect(() => {
     setMounted(true);
@@ -358,7 +360,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
         style={{
           gridColumn: "1 / -1",
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 12,
           border: "1px solid var(--c2-border)",
           borderRadius: 8,
@@ -379,6 +381,10 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           <strong>
             {filteredEvents.length} visible / {events.length} total
           </strong>
+        </div>
+        <div>
+          <div style={{ color: "var(--c2-muted)", fontSize: 12, textTransform: "uppercase" }}>Bookmarks</div>
+          <strong>{bookmarks.ready ? bookmarks.bookmarkCount : 0} local</strong>
         </div>
       </header>
       <section style={{ minWidth: 0 }}>
@@ -507,6 +513,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                 const color = getEventColor(event);
                 const highlight = buildHighlightState(event, selectedEvent);
                 const screen = projectToScreen(event.lon, event.lat, viewState, effectiveViewportSize);
+                const bookmarked = bookmarks.isBookmarked(event.dedupeKey);
                 return (
                   <button
                     key={event.dedupeKey}
@@ -532,7 +539,9 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                         ? "rgba(126, 231, 255, 0.12)"
                         : highlight.highlightTarget
                           ? "rgba(255, 210, 124, 0.12)"
-                          : "rgba(0, 0, 0, 0.35)",
+                          : bookmarked
+                            ? "rgba(255, 255, 255, 0.18)"
+                            : "rgba(0, 0, 0, 0.35)",
                       padding: 0,
                       color,
                       textShadow: "0 0 8px rgba(0,0,0,0.95)",
@@ -686,7 +695,11 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
         </div>
       </section>
       <aside style={{ position: "relative", zIndex: 3 }}>
-        <DetailDrawer event={selectedEvent} />
+        <DetailDrawer
+          event={selectedEvent}
+          isBookmarked={selectedEvent ? bookmarks.isBookmarked(selectedEvent.dedupeKey) : false}
+          onToggleBookmark={bookmarks.toggleBookmark}
+        />
       </aside>
     </main>
   );

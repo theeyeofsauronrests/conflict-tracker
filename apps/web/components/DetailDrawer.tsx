@@ -10,6 +10,8 @@ const Icon = (DT as any).Icon ?? (({ children }: { children: ReactNode }) => <sp
 
 interface DetailDrawerProps {
   event: Event | null;
+  isBookmarked: boolean;
+  onToggleBookmark: (eventKey: string) => void;
 }
 
 function getNoteKey(eventId: string): string {
@@ -17,7 +19,7 @@ function getNoteKey(eventId: string): string {
   return `ct-note-${eventId}`;
 }
 
-export function DetailDrawer({ event }: DetailDrawerProps) {
+export function DetailDrawer({ event, isBookmarked, onToggleBookmark }: DetailDrawerProps) {
   const [note, setNote] = useState("");
 
   const parseInlineLinks = (text: string) => {
@@ -81,6 +83,22 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
           {event.eventType.toUpperCase()}
         </h3>
         <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
+        <div style={{ marginBottom: 10 }}>
+          <button
+            type="button"
+            onClick={() => onToggleBookmark(event.dedupeKey)}
+            style={{
+              border: "1px solid var(--c2-border)",
+              borderRadius: 6,
+              background: isBookmarked ? "#1f2937" : "#0f172a",
+              color: "var(--c2-text)",
+              padding: "6px 10px",
+              cursor: "pointer"
+            }}
+          >
+            {isBookmarked ? "Remove bookmark" : "Bookmark event"}
+          </button>
+        </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           <span
             style={{
