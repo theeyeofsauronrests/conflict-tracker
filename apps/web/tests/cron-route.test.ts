@@ -33,4 +33,13 @@ describe("runCronIngest", () => {
     expect(body.inserted).toBe(3);
     expect(runIngestion).toHaveBeenCalledTimes(1);
   });
+
+  it("accepts bearer token auth", async () => {
+    const request = new Request("http://localhost/api/cron/ingest", {
+      headers: { authorization: "Bearer secret" }
+    });
+
+    const response = await runCronIngest(request);
+    expect(response.status).toBe(200);
+  });
 });

@@ -1,5 +1,14 @@
+import { timingSafeEqual } from "node:crypto";
 import { runIngestion } from "@/lib/ingest";
 import { getCronEnv } from "@/lib/env";
+
+function safeSecretEquals(left: string | null | undefined, right: string): boolean {
+  if (!left) return false;
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function runCronIngest(request: Request): Promise<Response> {
   // Only trusted cron calls are allowed to trigger writes.
@@ -9,7 +18,7 @@ export async function runCronIngest(request: Request): Promise<Response> {
   const bearerSecret = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length).trim() : null;
 
   // Accept either explicit secret header or standard Bearer token style.
-  const isAuthorized = requestSecret === CRON_SECRET || bearerSecret === CRON_SECRET;
+  const isAuthorized = safeSecretEquals(requestSecret, CRON_SECRET) || safeSecretEquals(bearerSecret, CRON_SECRET);
   if (!isAuthorized) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
