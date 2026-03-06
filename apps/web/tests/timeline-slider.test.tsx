@@ -50,4 +50,26 @@ describe("TimelineSlider", () => {
     expect(resizeRightCall?.[0]).toBe(1);
     expect(resizeRightCall?.[1]).toBe(4);
   });
+
+  it("uses current track width so small drags do not jump the start bound", () => {
+    const onChange = vi.fn();
+    const timestamps = Array.from({ length: 5 }, (_, index) => new Date(`2026-03-05T0${index}:00:00.000Z`).getTime());
+
+    render(<TimelineSlider timestamps={timestamps} startIndex={1} endIndex={3} onChange={onChange} />);
+
+    const track = document.getElementById("timeline-track");
+    expect(track).toBeTruthy();
+    Object.defineProperty(track as HTMLElement, "getBoundingClientRect", {
+      value: () => ({ width: 200 }),
+      configurable: true
+    });
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: /Resize timeline start/i }), { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: 110 });
+    fireEvent.mouseUp(window);
+
+    const call = onChange.mock.calls.at(-1);
+    expect(call?.[0]).toBe(1);
+    expect(call?.[1]).toBe(3);
+  });
 });
