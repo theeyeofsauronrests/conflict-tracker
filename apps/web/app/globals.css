@@ -22,3 +22,23 @@ body {
 main {
   min-height: 100vh;
 }
+
+@keyframes actor-target-flow-dash {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    stroke-dashoffset: -42;
+    opacity: 0.95;
+  }
+}
+
+.actor-target-flow-dash {
+  animation-name: actor-target-flow-dash;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}

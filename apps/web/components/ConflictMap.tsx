@@ -29,6 +29,32 @@ interface ViewportSize {
   height: number;
 }
 
+interface DirectionalFlow {
+  id: string;
+  actorNation: string;
+  targetNation: string;
+  count: number;
+  from: { lon: number; lat: number };
+  to: { lon: number; lat: number };
+}
+
+const NATIONALITY_ANCHORS: Record<string, { lon: number; lat: number }> = {
+  iran: { lon: 51.389, lat: 35.689 },
+  israel: { lon: 35.2137, lat: 31.7683 },
+  iraq: { lon: 44.3661, lat: 33.3152 },
+  usa: { lon: -77.0369, lat: 38.9072 },
+  lebanon: { lon: 35.5018, lat: 33.8938 },
+  cyprus: { lon: 33.3823, lat: 35.1856 },
+  jordan: { lon: 35.9106, lat: 31.9539 },
+  syria: { lon: 36.2765, lat: 33.5138 },
+  saudi: { lon: 46.6753, lat: 24.7136 },
+  uae: { lon: 54.3773, lat: 24.4539 },
+  qatar: { lon: 51.531, lat: 25.2854 },
+  yemen: { lon: 44.2075, lat: 15.3694 },
+  turkey: { lon: 32.8597, lat: 39.9334 },
+  russia: { lon: 37.6173, lat: 55.7558 }
+};
+
 function projectToScreen(
   lon: number,
   lat: number,
@@ -57,6 +83,71 @@ function normalizeNation(value: string | undefined): string | null {
   const normalized = value.trim().toLowerCase();
   if (!normalized || normalized === "unknown") return null;
   return normalized;
+}
+
+function resolveNationAnchor(nation: string, centroid: { lon: number; lat: number } | null): { lon: number; lat: number } | null {
+  if (centroid) return centroid;
+  return NATIONALITY_ANCHORS[nation] ?? null;
+}
+
+function buildDirectionalFlows(events: ConflictEvent[]): DirectionalFlow[] {
+  const actorBuckets = new Map<string, { lonSum: number; latSum: number; count: number }>();
+  const targetBuckets = new Map<string, { lonSum: number; latSum: number; count: number }>();
+  const pairCounts = new Map<string, { actorNation: string; targetNation: string; count: number }>();
+
+  for (const event of events) {
+    const actor = normalizeNation(event.actorNationality);
+    const target = normalizeNation(event.targetNationality);
+    if (!actor || !target || actor === target) continue;
+
+    const actorBucket = actorBuckets.get(actor) ?? { lonSum: 0, latSum: 0, count: 0 };
+    actorBucket.lonSum += event.lon;
+    actorBucket.latSum += event.lat;
+    actorBucket.count += 1;
+    actorBuckets.set(actor, actorBucket);
+
+    const targetBucket = targetBuckets.get(target) ?? { lonSum: 0, latSum: 0, count: 0 };
+    targetBucket.lonSum += event.lon;
+    targetBucket.latSum += event.lat;
+    targetBucket.count += 1;
+    targetBuckets.set(target, targetBucket);
+
+    const pairId = `${actor}->${target}`;
+    const pair = pairCounts.get(pairId) ?? { actorNation: actor, targetNation: target, count: 0 };
+    pair.count += 1;
+    pairCounts.set(pairId, pair);
+  }
+
+  const actorCentroids = new Map<string, { lon: number; lat: number }>();
+  const targetCentroids = new Map<string, { lon: number; lat: number }>();
+
+  for (const [nation, bucket] of actorBuckets.entries()) {
+    actorCentroids.set(nation, { lon: bucket.lonSum / bucket.count, lat: bucket.latSum / bucket.count });
+  }
+  for (const [nation, bucket] of targetBuckets.entries()) {
+    targetCentroids.set(nation, { lon: bucket.lonSum / bucket.count, lat: bucket.latSum / bucket.count });
+  }
+
+  const flows: DirectionalFlow[] = [];
+  for (const pair of pairCounts.values()) {
+    const from = resolveNationAnchor(pair.actorNation, actorCentroids.get(pair.actorNation) ?? null);
+    const to = resolveNationAnchor(pair.targetNation, targetCentroids.get(pair.targetNation) ?? null);
+    if (!from || !to) continue;
+
+    const distance = Math.hypot(to.lon - from.lon, to.lat - from.lat);
+    if (!Number.isFinite(distance) || distance < 0.25) continue;
+
+    flows.push({
+      id: `${pair.actorNation}->${pair.targetNation}`,
+      actorNation: pair.actorNation,
+      targetNation: pair.targetNation,
+      count: pair.count,
+      from,
+      to
+    });
+  }
+
+  return flows.sort((a, b) => b.count - a.count);
 }
 
 function buildHighlightState(event: ConflictEvent, selectedEvent: ConflictEvent | null): {
@@ -237,6 +328,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
     });
   }, [events, startTs, endTs]);
   const clusters = useMemo(() => buildClusters(filteredEvents, viewState.zoom ?? 4), [filteredEvents, viewState.zoom]);
+  const directionalFlows = useMemo(() => buildDirectionalFlows(filteredEvents), [filteredEvents]);
   const expandedCluster = useMemo(
     () => clusters.find((cluster) => cluster.id === expandedClusterId) ?? null,
     [clusters, expandedClusterId]
@@ -335,6 +427,51 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
             cursor="grab"
           />
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
+            <svg
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${effectiveViewportSize.width} ${effectiveViewportSize.height}`}
+              preserveAspectRatio="none"
+              style={{ position: "absolute", inset: 0, overflow: "visible" }}
+            >
+              {directionalFlows.map((flow) => {
+                const from = projectToScreen(flow.from.lon, flow.from.lat, viewState, effectiveViewportSize);
+                const to = projectToScreen(flow.to.lon, flow.to.lat, viewState, effectiveViewportSize);
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                const distance = Math.hypot(dx, dy);
+                if (!Number.isFinite(distance) || distance < 10) return null;
+
+                const unitX = dx / distance;
+                const unitY = dy / distance;
+                const normalX = -unitY;
+                const normalY = unitX;
+                const curvatureSign = (flow.id.length + flow.actorNation.length + flow.targetNation.length) % 2 === 0 ? -1 : 1;
+                const arcLift = Math.max(24, Math.min(160, distance * 0.18));
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+                const controlX = midX + normalX * arcLift * curvatureSign;
+                const controlY = midY + normalY * arcLift * curvatureSign;
+                const arcPath = `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`;
+                const strokeWidth = Math.min(4, 1 + Math.log2(flow.count + 1));
+                const color = nationalityColorMap[flow.actorNation] ?? "#7dd3fc";
+
+                return (
+                  <g key={flow.id} opacity={0.9}>
+                    <path d={arcPath} stroke={color} strokeWidth={strokeWidth + 1.2} opacity={0.14} fill="none" />
+                    <path
+                      d={arcPath}
+                      stroke={color}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={`${8 + strokeWidth * 3} ${14 + strokeWidth * 3}`}
+                      className="actor-target-flow-dash"
+                      style={{ animationDuration: `${Math.max(1.6, 3.2 - Math.min(flow.count, 6) * 0.2)}s` }}
+                      fill="none"
+                    />
+                  </g>
+                );
+              })}
+            </svg>
             {/* Event markers are projected manually to screen space so they stay interactive and visible across maplibre quirks. */}
             {clusters
               .filter((cluster) => cluster.events.length === 1 && cluster.id !== expandedClusterId)
