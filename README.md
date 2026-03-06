@@ -1,6 +1,6 @@
 # Conflict Tracker
 
-OSINT-only operational map for Middle East conflict monitoring with a strict 6-hour public visibility delay.
+OSINT-only operational map for conflict monitoring in West Asia and nearby regions, with a strict 6-hour public visibility delay.
 
 ## Architecture
 
