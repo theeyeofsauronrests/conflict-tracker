@@ -1,4 +1,4 @@
-import { parseRssItem } from "@conflict-tracker/agent-pipeline";
+import { parseRssItem, scoreConfidence } from "@conflict-tracker/agent-pipeline";
 import { getDbPool } from "../apps/web/lib/db";
 
 const DEFAULT_LOOKBACK_HOURS = 24 * 7;
@@ -39,12 +39,14 @@ async function main() {
       title: firstSource?.title ?? "",
       text: row.raw_text
     });
+    const confidence = scoreConfidence(`${firstSource?.title ?? ""} ${row.raw_text}`);
 
     await db.query(
       `UPDATE events
        SET
-         actor_nationality = COALESCE($2::text, actor_nationality),
-         target_nationality = COALESCE($3::text, target_nationality),
+         actor_nationality = $2::text,
+         target_nationality = $3::text,
+         confidence = $8::double precision,
          geometry = CASE
            WHEN abs(ST_X(geometry::geometry) - $4::double precision) < 0.0001
              AND abs(ST_Y(geometry::geometry) - $5::double precision) < 0.0001
@@ -52,7 +54,7 @@ async function main() {
            ELSE geometry
          END
        WHERE id = $1::uuid`,
-      [row.id, parsed.actorNationality ?? null, parsed.targetNationality ?? null, FALLBACK_LON, FALLBACK_LAT, parsed.lon, parsed.lat]
+      [row.id, parsed.actorNationality ?? null, parsed.targetNationality ?? null, FALLBACK_LON, FALLBACK_LAT, parsed.lon, parsed.lat, confidence]
     );
     updated += 1;
   }

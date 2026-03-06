@@ -48,6 +48,12 @@ type NatMatcher = {
   pattern: RegExp;
 };
 
+type NationalityMention = {
+  nationality: string;
+  index: number;
+  length: number;
+};
+
 const nationalityMatchers: NatMatcher[] = [
   { nationality: "iran", pattern: /\biran(ian)?\b|\btehran\b|\birgc\b/i },
   { nationality: "israel", pattern: /\bisrael(i)?\b|\bidf\b|\btel aviv\b/i },
@@ -68,58 +74,143 @@ const nationalityMatchers: NatMatcher[] = [
   { nationality: "palestinian", pattern: /\bpalestin(ian|e)?\b|\bgaza\b|\bhamas\b/i }
 ];
 
-function findMentionedNationalities(text: string): string[] {
-  const mentions: Array<{ nationality: string; index: number }> = [];
+function findNationalityMentions(text: string): NationalityMention[] {
+  const mentions: NationalityMention[] = [];
   for (const matcher of nationalityMatchers) {
     const match = matcher.pattern.exec(text);
     if (match && typeof match.index === "number") {
-      mentions.push({ nationality: matcher.nationality, index: match.index });
+      mentions.push({ nationality: matcher.nationality, index: match.index, length: (match[0] ?? "").length });
     }
   }
 
   mentions.sort((a, b) => a.index - b.index);
-  const deduped: string[] = [];
+  const deduped: NationalityMention[] = [];
   for (const mention of mentions) {
-    if (!deduped.includes(mention.nationality)) {
-      deduped.push(mention.nationality);
+    if (!deduped.some((value) => value.nationality === mention.nationality)) {
+      deduped.push(mention);
     }
   }
 
   return deduped;
 }
 
+function pickBestNationality(scores: Map<string, number>, excluded = new Set<string>()): string | undefined {
+  let winner: string | undefined;
+  let bestScore = 0;
+
+  for (const [nationality, score] of scores.entries()) {
+    if (excluded.has(nationality)) continue;
+    if (score > bestScore) {
+      bestScore = score;
+      winner = nationality;
+    }
+  }
+
+  return winner;
+}
+
+function scoreMentionRoles(text: string, mentions: NationalityMention[], locationNationality?: string): {
+  actorScores: Map<string, number>;
+  targetScores: Map<string, number>;
+  negatedActorNationalities: Set<string>;
+} {
+  const lower = text.toLowerCase();
+  const actorScores = new Map<string, number>();
+  const targetScores = new Map<string, number>();
+  const negatedActorNationalities = new Set<string>();
+
+  for (const mention of mentions) {
+    const before = lower.slice(Math.max(0, mention.index - 36), mention.index).trimEnd();
+    const after = lower.slice(mention.index + mention.length, mention.index + mention.length + 40).trimStart();
+
+    actorScores.set(mention.nationality, actorScores.get(mention.nationality) ?? 0);
+    targetScores.set(mention.nationality, targetScores.get(mention.nationality) ?? 0);
+
+    // Do not assign actor when attribution is explicitly negated.
+    if (/\b(?:not|no evidence(?:\s+it\s+was)?|was(?:\s+)?not|wasn't)\s+(?:from|by|launched from|launched by|attributed to)\s*$/i.test(before)) {
+      negatedActorNationalities.add(mention.nationality);
+    }
+
+    if (/\b(?:from|by|launched by|fired by|claimed by|attributed to|blamed on)\s*$/i.test(before)) {
+      actorScores.set(mention.nationality, (actorScores.get(mention.nationality) ?? 0) + 3);
+    }
+
+    if (/^(?:launched|launches|fired|fires|struck|strikes|attacked|attacks|bombed|targeted|intercepted|intercepts|downed)\b/i.test(after)) {
+      actorScores.set(mention.nationality, (actorScores.get(mention.nationality) ?? 0) + 2);
+    }
+
+    if (/\b(?:on|in|at|near|off(?:\s+the)?\s+coast\s+of|against|toward|towards)\s*$/i.test(before)) {
+      targetScores.set(mention.nationality, (targetScores.get(mention.nationality) ?? 0) + 3);
+    }
+
+    if (locationNationality && mention.nationality === locationNationality) {
+      targetScores.set(mention.nationality, (targetScores.get(mention.nationality) ?? 0) + 1);
+    }
+  }
+
+  for (const nationality of negatedActorNationalities) {
+    actorScores.set(nationality, -999);
+  }
+
+  return { actorScores, targetScores, negatedActorNationalities };
+}
+
 function inferActorAndTarget(text: string, eventType: "strike" | "intercept", locationNationality?: string): {
   actorNationality?: string;
   targetNationality?: string;
 } {
-  const mentions = findMentionedNationalities(text);
+  const mentions = findNationalityMentions(text);
   if (mentions.length === 0) {
     return locationNationality ? { targetNationality: locationNationality } : {};
   }
 
-  // First mention is usually the actor in simple OSINT headline grammar.
-  let actorNationality = mentions[0];
-  let targetNationality = mentions[1];
+  const mentionNationalities = mentions.map((mention) => mention.nationality);
+  const { actorScores, targetScores, negatedActorNationalities } = scoreMentionRoles(text, mentions, locationNationality);
 
-  // Intercepts usually have clear "X intercepts Y" wording, so prefer that order.
-  if (eventType === "intercept" && mentions.length >= 2) {
+  let actorNationality = pickBestNationality(actorScores);
+  let targetNationality = pickBestNationality(targetScores, new Set(actorNationality ? [actorNationality] : []));
+
+  if (eventType === "intercept" && mentionNationalities.length >= 2 && !actorNationality) {
     const interceptBy = /(?:intercept|shot down|downed)\s+by\s+/i.test(text);
     if (interceptBy) {
-      actorNationality = mentions[1];
-      targetNationality = mentions[0];
+      actorNationality = mentionNationalities[1];
+      targetNationality = mentionNationalities[0];
+    } else {
+      actorNationality = mentionNationalities.find((nationality) => !negatedActorNationalities.has(nationality));
     }
   }
 
-  // One mention is still useful: keep that entity as actor, and use location as target when possible.
+  if (!targetNationality && mentionNationalities.length >= 2) {
+    targetNationality = mentionNationalities.find((nationality) => nationality !== actorNationality);
+  }
+
+  // For intercept events, location mentions (e.g. "over Iraq") should not override the intercepted actor.
+  if (eventType === "intercept" && actorNationality && mentionNationalities.length >= 2) {
+    const fallbackInterceptTarget = mentionNationalities.find((nationality) => nationality !== actorNationality);
+    const chosenTargetScore = targetNationality ? targetScores.get(targetNationality) ?? 0 : 0;
+    if (fallbackInterceptTarget && chosenTargetScore <= 1) {
+      targetNationality = fallbackInterceptTarget;
+    }
+  }
+
+  // Favor location as target when target is unresolved.
   if (!targetNationality) {
     if (locationNationality && locationNationality !== actorNationality) {
       targetNationality = locationNationality;
     }
-    return { actorNationality, targetNationality };
   }
 
-  if (!actorNationality && locationNationality && locationNationality !== targetNationality) {
-    actorNationality = locationNationality;
+  // Single mention fallback: only assign actor when not explicitly negated.
+  if (!actorNationality && mentionNationalities.length === 1) {
+    const onlyMention = mentionNationalities[0];
+    if (!negatedActorNationalities.has(onlyMention) && onlyMention !== targetNationality) {
+      actorNationality = onlyMention;
+    }
+  }
+
+  // Avoid self actor-target assignment unless no better fallback exists.
+  if (actorNationality && targetNationality && actorNationality === targetNationality) {
+    targetNationality = locationNationality && locationNationality !== actorNationality ? locationNationality : undefined;
   }
 
   return { actorNationality, targetNationality };

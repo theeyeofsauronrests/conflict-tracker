@@ -102,4 +102,22 @@ describe("createParseStage", () => {
     expect(parsed.actorNationality).toBe("iran");
     expect(parsed.targetNationality).toBe("iraq");
   });
+
+  it("treats location phrasing as target and avoids negated actor attribution", async () => {
+    const stage = createParseStage();
+    const ctx = createContext(
+      "UK says drone attack on Cyprus base was not launched from Iran",
+      "UK says drone attack on Cyprus base was not launched from Iran"
+    );
+
+    const next = await stage.run(ctx);
+    const parsed = next.parsed[0];
+    expect(parsed).toBeDefined();
+    if (!parsed) {
+      throw new Error("Expected parsed output");
+    }
+
+    expect(parsed.targetNationality).toBe("cyprus");
+    expect(parsed.actorNationality).toBeUndefined();
+  });
 });
