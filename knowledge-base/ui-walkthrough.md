@@ -11,42 +11,48 @@ The app is split into two main areas:
 
 ## Timeline slider (top-left)
 
-Label: `Timeline window (hours)`
+Label: `Timeline window (records-bounded)`
 
 What it does:
 
-- Controls how far back events appear on the map
-- Lower value = only very recent events
-- Higher value = broader historical view
+- Uses one timeline track with a draggable selected window
+- Drag the window body to move across time
+- Drag the window edges to resize start/end bounds
+- Updates map events immediately as you drag
+- Shows Start and End timestamps explicitly in local time
+- Only allows ranges where records exist (based on available event timestamps)
 
 When to use it:
 
-- 24h for daily review
-- 72h+ for short trend analysis
+- Tight window for rapid triage
+- Wider window for trend comparison across recent days
 
 ## Map area (center-left)
 
 What you see:
 
 - Event-specific icons (missile, drone, intercept, unknown target)
-- Force and asset positions (delayed public view)
 - Spatial distribution across the region
 
 How to interact:
 
 - Click an event icon to open details
 - Pan and zoom to inspect local clusters
+- Click a cluster count bubble to open a modal list of all events in that cluster
+- Click any row in the cluster modal to open that event in the detail panel
 - Hovering a clickable entity changes the cursor so you can tell it is interactive
+- Scroll and pinch gestures over the map are captured by the map area so the browser page does not zoom unexpectedly
 
 Tip:
 
-- If the map feels crowded, reduce timeline window first.
+- If the map feels crowded, move the start bound closer to the end bound.
 
 ## Legend (below map)
 
 What it does:
 
 - Shows nationality color mapping
+- Shows actor/target match highlight rings when an event is selected
 - Helps you quickly separate actors visually
 
 Use it for:
@@ -96,7 +102,9 @@ Use it for:
 - No events visible:
   - Run `pnpm ingest`
   - Refresh browser
+- Too many unknown actor/target fields:
+  - Run `pnpm ingest:reparse`
 - Events look old:
-  - Increase timeline window
+  - Move the end bound toward the newest records
 - Missing notes:
   - Confirm same browser and same event selected

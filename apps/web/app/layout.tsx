@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeShell } from "@/components/ThemeShell";
+import { TopNav } from "@/components/TopNav";
 
 export const metadata: Metadata = {
   title: "Conflict Tracker",
@@ -12,7 +13,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <ThemeShell>{children}</ThemeShell>
+        <ThemeShell>
+          <TopNav />
+          {children}
+        </ThemeShell>
       </body>
     </html>
   );

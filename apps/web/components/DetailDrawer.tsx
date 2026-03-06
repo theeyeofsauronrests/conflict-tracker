@@ -76,11 +76,37 @@ export function DetailDrawer({ event }: DetailDrawerProps) {
               lineHeight: 1
             }}
           >
-            <Icon>{EventIcon ? <EventIcon /> : null}</Icon>
+            <Icon>{EventIcon ? <EventIcon width={20} height={20} /> : null}</Icon>
           </span>
           {event.eventType.toUpperCase()}
         </h3>
         <p style={{ color: eventColor, marginTop: -6, marginBottom: 10 }}>Type: {event.eventType}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          <span
+            style={{
+              border: "1px solid #7ee7ff",
+              borderRadius: 999,
+              padding: "2px 8px",
+              fontSize: 12,
+              textTransform: "uppercase",
+              color: "#d9f6ff"
+            }}
+          >
+            Actor: {event.actorNationality ?? "unknown"}
+          </span>
+          <span
+            style={{
+              border: "1px solid #ffd27c",
+              borderRadius: 999,
+              padding: "2px 8px",
+              fontSize: 12,
+              textTransform: "uppercase",
+              color: "#ffe3b0"
+            }}
+          >
+            Target: {event.targetNationality ?? "unknown"}
+          </span>
+        </div>
         <p style={{ color: "var(--c2-muted)" }}>Confidence: {(event.confidence * 100).toFixed(0)}%</p>
         <p style={{ color: "var(--c2-muted)" }}>Time: {new Date(event.eventTime).toLocaleString()}</p>
         {inlineLinks.length > 0 ? (

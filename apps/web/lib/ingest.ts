@@ -49,12 +49,14 @@ export async function runIngestion(): Promise<number> {
         ST_SetSRID(ST_MakePoint($10::double precision, $11::double precision), 4326)
       )
       ON CONFLICT (dedupe_key) DO UPDATE SET
+        event_time = EXCLUDED.event_time,
         confidence = EXCLUDED.confidence,
         actor_nationality = EXCLUDED.actor_nationality,
         target_nationality = EXCLUDED.target_nationality,
         blast_radius_m = EXCLUDED.blast_radius_m,
         raw_text = EXCLUDED.raw_text,
-        sources = EXCLUDED.sources
+        sources = EXCLUDED.sources,
+        geometry = EXCLUDED.geometry
       RETURNING (xmax = 0) AS inserted`,
       [
         event.eventTime,

@@ -3,7 +3,7 @@ import { createRssIngestPlugin, runIngestPlugins } from "@conflict-tracker/inges
 import type { Event } from "@conflict-tracker/data-model";
 import { getDbPool } from "../apps/web/lib/db";
 
-const LOOKBACK_DAYS = 7;
+const DEFAULT_LOOKBACK_HOURS = 24 * 7;
 const FEED_BASE = "https://news.google.com/rss/search";
 
 const QUERY_TERMS = [
@@ -31,8 +31,8 @@ function buildFeedUrl(query: string): string {
   return `${FEED_BASE}?${params.toString()}`;
 }
 
-function isRecent(isoDate: string): boolean {
-  const cutoff = Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+function isRecent(isoDate: string, lookbackHours: number): boolean {
+  const cutoff = Date.now() - lookbackHours * 60 * 60 * 1000;
   const publishedAt = new Date(isoDate).getTime();
   return Number.isFinite(publishedAt) && publishedAt >= cutoff;
 }
@@ -74,12 +74,14 @@ async function upsertEvents(events: Event[]): Promise<number> {
         ST_SetSRID(ST_MakePoint($10::double precision, $11::double precision), 4326)
       )
       ON CONFLICT (dedupe_key) DO UPDATE SET
+        event_time = EXCLUDED.event_time,
         confidence = EXCLUDED.confidence,
         actor_nationality = EXCLUDED.actor_nationality,
         target_nationality = EXCLUDED.target_nationality,
         blast_radius_m = EXCLUDED.blast_radius_m,
         raw_text = EXCLUDED.raw_text,
-        sources = EXCLUDED.sources
+        sources = EXCLUDED.sources,
+        geometry = EXCLUDED.geometry
       RETURNING (xmax = 0) AS inserted`,
       [
         event.eventTime,
@@ -105,6 +107,9 @@ async function upsertEvents(events: Event[]): Promise<number> {
 }
 
 async function main() {
+  const argHours = Number(process.argv[2] ?? "");
+  const lookbackHours = Number.isFinite(argHours) && argHours > 0 ? argHours : DEFAULT_LOOKBACK_HOURS;
+
   const plugins = QUERY_TERMS.map((query, index) =>
     createRssIngestPlugin({
       id: `iran-backfill-${index + 1}`,
@@ -114,19 +119,31 @@ async function main() {
   );
 
   const rssItems = await runIngestPlugins(plugins);
-  const filteredItems = rssItems.filter((item) => isRecent(item.publishedAt) && isConflictSignal(`${item.title} ${item.text}`));
+  const filteredItems = rssItems.filter(
+    (item) => isRecent(item.publishedAt, lookbackHours) && isConflictSignal(`${item.title} ${item.text}`)
+  );
   const events = await runAgentPipeline(filteredItems, createDefaultStages());
   const inserted = await upsertEvents(events);
 
   const db = getDbPool();
-  const countResult = await db.query(
-    `SELECT count(*)::int AS count
-     FROM events
-     WHERE event_time >= now() - interval '7 days'`
-  );
-  const weekCount = countResult.rows[0]?.count ?? 0;
+  const [windowCountResult, weekCountResult] = await Promise.all([
+    db.query(
+      `SELECT count(*)::int AS count
+       FROM events
+       WHERE event_time >= now() - ($1::int * interval '1 hour')`,
+      [lookbackHours]
+    ),
+    db.query(
+      `SELECT count(*)::int AS count
+       FROM events
+       WHERE event_time >= now() - interval '7 days'`
+    )
+  ]);
+  const windowCount = windowCountResult.rows[0]?.count ?? 0;
+  const weekCount = weekCountResult.rows[0]?.count ?? 0;
 
-  console.log(`Backfill complete. Parsed ${events.length} events, inserted ${inserted} new rows.`);
+  console.log(`Backfill complete (${lookbackHours}h lookback). Parsed ${events.length} events, inserted ${inserted} new rows.`);
+  console.log(`Events in last ${lookbackHours} hours: ${windowCount}`);
   console.log(`Events in last 7 days: ${weekCount}`);
 }
 

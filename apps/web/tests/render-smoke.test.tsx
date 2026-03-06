@@ -36,6 +36,6 @@ describe("ConflictMap", () => {
   it("renders timeline and map shell", () => {
     render(<ConflictMap events={[]} forces={[]} assets={[]} />);
     expect(screen.getByText(/Timeline window/i)).toBeInTheDocument();
-    expect(screen.getByTestId("deck")).toBeInTheDocument();
+    expect(screen.getByTestId("basemap")).toBeInTheDocument();
   });
 });

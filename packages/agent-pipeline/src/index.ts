@@ -1,5 +1,5 @@
 import type { Event, RssItem } from "@conflict-tracker/data-model";
-import { createParseStage } from "./stages/parse";
+import { createParseStage, parseRssItem } from "./stages/parse";
 import { geoNormalizeStage } from "./stages/geo-normalize";
 import { dedupeStage } from "./stages/dedupe";
 import { confidenceStage } from "./stages/confidence";
@@ -27,3 +27,5 @@ export async function runAgentPipeline(items: RssItem[], stages: AgentStage[]): 
 
   return ctx.scored;
 }
+
+export { parseRssItem };

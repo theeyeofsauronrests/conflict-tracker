@@ -56,4 +56,50 @@ describe("createParseStage", () => {
     expect(parsed.lon).toBe(53.688);
     expect(parsed.lat).toBe(32.4279);
   });
+
+  it("infers actor and target from common intercept phrasing", async () => {
+    const stage = createParseStage();
+    const ctx = createContext("Israel intercepts Iranian missile over Iraq");
+
+    const next = await stage.run(ctx);
+    const parsed = next.parsed[0];
+    expect(parsed).toBeDefined();
+    if (!parsed) {
+      throw new Error("Expected parsed output");
+    }
+
+    expect(parsed.eventType).toBe("intercept");
+    expect(parsed.actorNationality).toBe("israel");
+    expect(parsed.targetNationality).toBe("iran");
+  });
+
+  it("maps non-Iran theaters when the text mentions them", async () => {
+    const stage = createParseStage();
+    const ctx = createContext("Strike report near Beirut in Lebanon");
+
+    const next = await stage.run(ctx);
+    const parsed = next.parsed[0];
+    expect(parsed).toBeDefined();
+    if (!parsed) {
+      throw new Error("Expected parsed output");
+    }
+
+    expect(parsed.lon).toBe(35.5018);
+    expect(parsed.lat).toBe(33.8938);
+  });
+
+  it("uses location theater as target when only one actor mention exists", async () => {
+    const stage = createParseStage();
+    const ctx = createContext("Iran launches missiles in Iraq");
+
+    const next = await stage.run(ctx);
+    const parsed = next.parsed[0];
+    expect(parsed).toBeDefined();
+    if (!parsed) {
+      throw new Error("Expected parsed output");
+    }
+
+    expect(parsed.actorNationality).toBe("iran");
+    expect(parsed.targetNationality).toBe("iraq");
+  });
 });

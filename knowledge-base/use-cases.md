@@ -10,7 +10,7 @@ Workflow:
 
 1. Run `pnpm ingest`.
 2. Open the map.
-3. Set timeline to the last 24 hours.
+3. Drag timeline start/end bounds to cover the last 24 hours of available records.
 4. Click high-confidence events and read source text.
 5. Add local note for events that need follow-up.
 
@@ -40,7 +40,7 @@ Goal: Identify possible escalation patterns.
 Workflow:
 
 1. Ingest fresh data.
-2. Move timeline slider from 24h to 72h or 168h.
+2. Slide the start bound earlier while keeping the end bound near the latest records.
 3. Compare density and location shifts.
 4. Review repeated areas or repeated event types.
 
