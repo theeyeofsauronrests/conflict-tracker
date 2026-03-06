@@ -423,7 +423,8 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           ref={mapContainerRef}
           style={{
             marginTop: 12,
-            height: "75vh",
+            // Keep map tall enough for analysis while preserving space for legend/details on common laptop screens.
+            height: "clamp(380px, 62vh, 620px)",
             border: "1px solid var(--c2-border)",
             borderRadius: 8,
             overflow: "hidden",
