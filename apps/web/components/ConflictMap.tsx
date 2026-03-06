@@ -29,13 +29,12 @@ interface ViewportSize {
   height: number;
 }
 
-interface DirectionalFlow {
+interface EventArc {
   id: string;
   actorNation: string;
-  targetNation: string;
-  count: number;
   from: { lon: number; lat: number };
   to: { lon: number; lat: number };
+  confidence: number;
 }
 
 const NATIONALITY_ANCHORS: Record<string, { lon: number; lat: number }> = {
@@ -90,64 +89,48 @@ function resolveNationAnchor(nation: string, centroid: { lon: number; lat: numbe
   return NATIONALITY_ANCHORS[nation] ?? null;
 }
 
-function buildDirectionalFlows(events: ConflictEvent[]): DirectionalFlow[] {
+function buildEventArcs(events: ConflictEvent[]): EventArc[] {
   const actorBuckets = new Map<string, { lonSum: number; latSum: number; count: number }>();
-  const targetBuckets = new Map<string, { lonSum: number; latSum: number; count: number }>();
-  const pairCounts = new Map<string, { actorNation: string; targetNation: string; count: number }>();
 
   for (const event of events) {
     const actor = normalizeNation(event.actorNationality);
-    const target = normalizeNation(event.targetNationality);
-    if (!actor || !target || actor === target) continue;
+    if (!actor) continue;
 
     const actorBucket = actorBuckets.get(actor) ?? { lonSum: 0, latSum: 0, count: 0 };
     actorBucket.lonSum += event.lon;
     actorBucket.latSum += event.lat;
     actorBucket.count += 1;
     actorBuckets.set(actor, actorBucket);
-
-    const targetBucket = targetBuckets.get(target) ?? { lonSum: 0, latSum: 0, count: 0 };
-    targetBucket.lonSum += event.lon;
-    targetBucket.latSum += event.lat;
-    targetBucket.count += 1;
-    targetBuckets.set(target, targetBucket);
-
-    const pairId = `${actor}->${target}`;
-    const pair = pairCounts.get(pairId) ?? { actorNation: actor, targetNation: target, count: 0 };
-    pair.count += 1;
-    pairCounts.set(pairId, pair);
   }
 
   const actorCentroids = new Map<string, { lon: number; lat: number }>();
-  const targetCentroids = new Map<string, { lon: number; lat: number }>();
 
   for (const [nation, bucket] of actorBuckets.entries()) {
     actorCentroids.set(nation, { lon: bucket.lonSum / bucket.count, lat: bucket.latSum / bucket.count });
   }
-  for (const [nation, bucket] of targetBuckets.entries()) {
-    targetCentroids.set(nation, { lon: bucket.lonSum / bucket.count, lat: bucket.latSum / bucket.count });
-  }
 
-  const flows: DirectionalFlow[] = [];
-  for (const pair of pairCounts.values()) {
-    const from = resolveNationAnchor(pair.actorNation, actorCentroids.get(pair.actorNation) ?? null);
-    const to = resolveNationAnchor(pair.targetNation, targetCentroids.get(pair.targetNation) ?? null);
-    if (!from || !to) continue;
+  const arcs: EventArc[] = [];
+  for (const event of events) {
+    const actor = normalizeNation(event.actorNationality);
+    if (!actor) continue;
 
+    // Event coordinates represent the impacted location (target point on map).
+    const to = { lon: event.lon, lat: event.lat };
+    const from = resolveNationAnchor(actor, actorCentroids.get(actor) ?? null);
+    if (!from) continue;
     const distance = Math.hypot(to.lon - from.lon, to.lat - from.lat);
     if (!Number.isFinite(distance) || distance < 0.25) continue;
 
-    flows.push({
-      id: `${pair.actorNation}->${pair.targetNation}`,
-      actorNation: pair.actorNation,
-      targetNation: pair.targetNation,
-      count: pair.count,
+    arcs.push({
+      id: `arc-${event.dedupeKey}`,
+      actorNation: actor,
       from,
-      to
+      to,
+      confidence: event.confidence
     });
   }
 
-  return flows.sort((a, b) => b.count - a.count);
+  return arcs;
 }
 
 function buildHighlightState(event: ConflictEvent, selectedEvent: ConflictEvent | null): {
@@ -204,6 +187,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const [endIndex, setEndIndex] = useState(0);
   // Current time in the header helps analysts compare feed recency against "now".
   const [now, setNow] = useState<Date | null>(null);
+  const [showArcs, setShowArcs] = useState(true);
   // We only format locale-dependent timestamps after mount to avoid hydration mismatch.
   const [mounted, setMounted] = useState(false);
   const [viewState, setViewState] = useState(() => getDefaultViewport());
@@ -217,6 +201,24 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("conflict-tracker-show-arcs");
+      if (saved === "0") setShowArcs(false);
+      if (saved === "1") setShowArcs(true);
+    } catch {
+      // Ignore storage access failures and keep default.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("conflict-tracker-show-arcs", showArcs ? "1" : "0");
+    } catch {
+      // Ignore storage access failures.
+    }
+  }, [showArcs]);
 
   useEffect(() => {
     const element = mapContainerRef.current;
@@ -328,7 +330,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
     });
   }, [events, startTs, endTs]);
   const clusters = useMemo(() => buildClusters(filteredEvents, viewState.zoom ?? 4), [filteredEvents, viewState.zoom]);
-  const directionalFlows = useMemo(() => buildDirectionalFlows(filteredEvents), [filteredEvents]);
+  const eventArcs = useMemo(() => buildEventArcs(filteredEvents), [filteredEvents]);
   const expandedCluster = useMemo(
     () => clusters.find((cluster) => cluster.id === expandedClusterId) ?? null,
     [clusters, expandedClusterId]
@@ -390,6 +392,28 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
           }}
         />
         <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            border: "1px solid var(--c2-border)",
+            borderRadius: 8,
+            background: "var(--c2-panel)",
+            padding: "8px 10px"
+          }}
+        >
+          <input
+            id="show-actor-arcs"
+            type="checkbox"
+            checked={showArcs}
+            onChange={(event) => setShowArcs(event.target.checked)}
+          />
+          <label htmlFor="show-actor-arcs" style={{ fontSize: 13, color: "var(--c2-text)", cursor: "pointer" }}>
+            Show actor-to-target arcs
+          </label>
+        </div>
+        <div
           ref={mapContainerRef}
           style={{
             marginTop: 12,
@@ -427,14 +451,15 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
             cursor="grab"
           />
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
-            <svg
-              width="100%"
-              height="100%"
-              viewBox={`0 0 ${effectiveViewportSize.width} ${effectiveViewportSize.height}`}
-              preserveAspectRatio="none"
-              style={{ position: "absolute", inset: 0, overflow: "visible" }}
-            >
-              {directionalFlows.map((flow) => {
+            {showArcs ? (
+              <svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${effectiveViewportSize.width} ${effectiveViewportSize.height}`}
+                preserveAspectRatio="none"
+                style={{ position: "absolute", inset: 0, overflow: "visible" }}
+              >
+                {eventArcs.map((flow) => {
                 const from = projectToScreen(flow.from.lon, flow.from.lat, viewState, effectiveViewportSize);
                 const to = projectToScreen(flow.to.lon, flow.to.lat, viewState, effectiveViewportSize);
                 const dx = to.x - from.x;
@@ -446,14 +471,14 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                 const unitY = dy / distance;
                 const normalX = -unitY;
                 const normalY = unitX;
-                const curvatureSign = (flow.id.length + flow.actorNation.length + flow.targetNation.length) % 2 === 0 ? -1 : 1;
+                const curvatureSign = (flow.id.length + flow.actorNation.length) % 2 === 0 ? -1 : 1;
                 const arcLift = Math.max(24, Math.min(160, distance * 0.18));
                 const midX = (from.x + to.x) / 2;
                 const midY = (from.y + to.y) / 2;
                 const controlX = midX + normalX * arcLift * curvatureSign;
                 const controlY = midY + normalY * arcLift * curvatureSign;
                 const arcPath = `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`;
-                const strokeWidth = Math.min(4, 1 + Math.log2(flow.count + 1));
+                const strokeWidth = Math.min(3.5, 1 + flow.confidence * 2);
                 const color = nationalityColorMap[flow.actorNation] ?? "#7dd3fc";
 
                 return (
@@ -465,13 +490,14 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                       strokeWidth={strokeWidth}
                       strokeDasharray={`${8 + strokeWidth * 3} ${14 + strokeWidth * 3}`}
                       className="actor-target-flow-dash"
-                      style={{ animationDuration: `${Math.max(1.6, 3.2 - Math.min(flow.count, 6) * 0.2)}s` }}
+                      style={{ animationDuration: `${Math.max(1.6, 3.1 - flow.confidence * 1.2)}s` }}
                       fill="none"
                     />
                   </g>
                 );
-              })}
-            </svg>
+                })}
+              </svg>
+            ) : null}
             {/* Event markers are projected manually to screen space so they stay interactive and visible across maplibre quirks. */}
             {clusters
               .filter((cluster) => cluster.events.length === 1 && cluster.id !== expandedClusterId)
@@ -480,7 +506,7 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
                 const EventIcon = getEventIcon(event);
                 const color = getEventColor(event);
                 const highlight = buildHighlightState(event, selectedEvent);
-                const screen = projectToScreen(cluster.lon, cluster.lat, viewState, effectiveViewportSize);
+                const screen = projectToScreen(event.lon, event.lat, viewState, effectiveViewportSize);
                 return (
                   <button
                     key={event.dedupeKey}

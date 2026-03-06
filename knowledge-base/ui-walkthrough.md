@@ -21,6 +21,7 @@ What it does:
 - Updates map events immediately as you drag
 - Shows Start and End timestamps explicitly in local time
 - Only allows ranges where records exist (based on available event timestamps)
+- Includes a `Show actor-to-target arcs` toggle if you want a quieter map view
 
 When to use it:
 
@@ -32,7 +33,8 @@ When to use it:
 What you see:
 
 - Event-specific icons (missile, drone, intercept, unknown target)
-- Curved pulsing actor-to-target flow arcs for nationality-level directionality
+- Event icon location is always the target impact location for that report
+- Optional curved pulsing arcs connect actor nation anchor points to target event icons
 - Spatial distribution across the region
 
 How to interact:

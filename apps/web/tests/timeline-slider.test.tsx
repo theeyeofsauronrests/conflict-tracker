@@ -19,4 +19,35 @@ describe("TimelineSlider", () => {
     fireEvent.mouseUp(window);
     expect(onChange).toHaveBeenCalled();
   });
+
+  it("clamps move and resize interactions to available min/max bounds", () => {
+    const onChange = vi.fn();
+    const timestamps = Array.from({ length: 5 }, (_, index) => new Date(`2026-03-05T0${index}:00:00.000Z`).getTime());
+
+    render(<TimelineSlider timestamps={timestamps} startIndex={1} endIndex={3} onChange={onChange} />);
+
+    fireEvent.mouseDown(screen.getByTestId("timeline-window"), { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: 10000 });
+    fireEvent.mouseUp(window);
+
+    const moveCall = onChange.mock.calls.at(-1);
+    expect(moveCall?.[0]).toBe(2);
+    expect(moveCall?.[1]).toBe(4);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: /Resize timeline start/i }), { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: -10000 });
+    fireEvent.mouseUp(window);
+
+    const resizeLeftCall = onChange.mock.calls.at(-1);
+    expect(resizeLeftCall?.[0]).toBe(0);
+    expect(resizeLeftCall?.[1]).toBe(3);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: /Resize timeline end/i }), { clientX: 100 });
+    fireEvent.mouseMove(window, { clientX: 10000 });
+    fireEvent.mouseUp(window);
+
+    const resizeRightCall = onChange.mock.calls.at(-1);
+    expect(resizeRightCall?.[0]).toBe(1);
+    expect(resizeRightCall?.[1]).toBe(4);
+  });
 });
