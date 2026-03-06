@@ -78,6 +78,16 @@ pnpm ingest:backfill
 
 This runs multiple RSS searches and inserts a much larger set of deduped events from the last 7 days.
 
+## 6c) (Optional) Reparse existing records
+
+If actor/target fields look too often unknown, run:
+
+```bash
+pnpm ingest:reparse
+```
+
+This revisits recent stored records and applies the latest parser heuristics to improve attribution.
+
 ## 7) Start the app
 
 ```bash
@@ -87,6 +97,7 @@ pnpm dev
 Then open:
 
 - [http://localhost:3000](http://localhost:3000)
+- [http://localhost:3000/docs](http://localhost:3000/docs) for in-app user documentation
 
 ## 8) Refresh data later
 

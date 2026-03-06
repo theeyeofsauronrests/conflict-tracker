@@ -6,11 +6,13 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 
 - Monorepo: `pnpm` + `turbo`
 - App: Next.js App Router (`apps/web`) for Vercel
-- Map: Deck.GL + `@accelint/map-toolkit` layer helpers
+- Map: MapLibre basemap with projected icon overlays for events
 - UI: `@accelint/design-toolkit` + `@accelint/icons` with C2 dark theme
 - Storage: local Postgres + PostGIS (`docker-compose.yml`)
 - Pipeline: web RSS scrape plugins -> local heuristic agent stages -> Postgres upsert
 - Security: no auth, API serves delayed views only, write path is cron-only
+- Timeline UX: interactive start/end slider constrained to available event records only
+- Cluster UX: click cluster count bubble to open a list modal and select individual events
 
 ## Repository Layout
 
@@ -26,6 +28,7 @@ OSINT-only operational map for Middle East conflict monitoring with a strict 6-h
 - `scripts/seed.ts`: seed loader script
 - `scripts/ingest.ts`: manual local ingestion runner
 - `scripts/backfill-iran-week.ts`: 7-day multi-query backfill runner for larger local datasets
+- `scripts/reparse-existing-events.ts`: enrich existing rows with improved actor/target parsing and fallback-geometry repair
 
 ## Environment Variables
 
@@ -52,8 +55,12 @@ Fast path:
    - or `curl -H "x-cron-secret: <CRON_SECRET>" http://localhost:3000/api/cron/ingest`
 5. Optional: backfill a larger 7-day dataset (targeting 100+ events):
    - `pnpm ingest:backfill`
-6. Run app:
+6. Optional: reparse existing records after parser improvements:
+   - `pnpm ingest:reparse`
+7. Run app:
    - `pnpm dev`
+8. Open user documentation in-app:
+   - `http://localhost:3000/docs`
 
 ## Cron Ingestion
 
@@ -103,6 +110,7 @@ Fast path:
 Run all tests:
 
 - `pnpm test`
+- `pnpm typecheck`
 
 ## Architecture Rationale
 
