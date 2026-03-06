@@ -33,6 +33,11 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
     const width = trackRef.current?.getBoundingClientRect().width ?? 1;
     return width / Math.max(1, rangeMax);
   }, [rangeMax]);
+  const clampRange = (nextStart: number, nextEnd: number): { start: number; end: number } => {
+    const start = Math.min(Math.max(0, nextStart), rangeMax);
+    const end = Math.min(Math.max(start, nextEnd), rangeMax);
+    return { start, end };
+  };
 
   useEffect(() => {
     if (!hasData || dragMode === "none") return;
@@ -44,20 +49,24 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
 
       if (dragMode === "move") {
         const width = original.end - original.start;
-        let nextStart = original.start + deltaIndex;
-        nextStart = Math.max(0, Math.min(nextStart, rangeMax - width));
-        onChange(nextStart, nextStart + width);
+        const maxStart = Math.max(0, rangeMax - width);
+        const nextStart = Math.max(0, Math.min(original.start + deltaIndex, maxStart));
+        const nextEnd = nextStart + width;
+        const clamped = clampRange(nextStart, nextEnd);
+        onChange(clamped.start, clamped.end);
         return;
       }
 
       if (dragMode === "resize-left") {
-        const nextStart = Math.max(0, Math.min(original.start + deltaIndex, safeEndIndex));
-        onChange(nextStart, safeEndIndex);
+        const nextStart = Math.max(0, Math.min(original.start + deltaIndex, original.end));
+        const clamped = clampRange(nextStart, original.end);
+        onChange(clamped.start, clamped.end);
         return;
       }
 
-      const nextEnd = Math.min(rangeMax, Math.max(original.end + deltaIndex, safeStartIndex));
-      onChange(safeStartIndex, nextEnd);
+      const nextEnd = Math.min(rangeMax, Math.max(original.end + deltaIndex, original.start));
+      const clamped = clampRange(original.start, nextEnd);
+      onChange(clamped.start, clamped.end);
     };
 
     const onMouseUp = () => setDragMode("none");
