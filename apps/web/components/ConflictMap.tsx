@@ -389,7 +389,13 @@ export function ConflictMap({ events, forces, assets }: ConflictMapProps) {
   const eventArcs = useMemo(() => buildEventArcs(filteredEvents), [filteredEvents]);
   // Keep layer plugin outputs in sync with the visible timeline data, even while using a maplibre-first renderer.
   const primaryLayers = useMemo(() => createPrimaryLayers(filteredEvents, forces, assets), [filteredEvents, forces, assets]);
-  const optionalLayers = useMemo(() => createOptionalLayers(filteredEvents), [filteredEvents]);
+  const optionalLayers = useMemo(() => {
+    // Aggregation layers allocate GPU resources on construction; avoid creating them unless explicitly enabled.
+    if (!showPluginOverlays || !showAnalysisOverlays) {
+      return [];
+    }
+    return createOptionalLayers(filteredEvents);
+  }, [filteredEvents, showAnalysisOverlays, showPluginOverlays]);
   const mapOverlayLayers = useMemo(() => {
     // Keep event icons/clusters as the primary visual language, while still integrating plugin layer output.
     const alwaysOn = primaryLayers.filter((layer) => {
