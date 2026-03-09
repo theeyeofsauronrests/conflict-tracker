@@ -17,6 +17,17 @@ export function getDefaultViewport() {
   };
 }
 
+export function createSavedViewport(viewport: { longitude: number; latitude: number; zoom: number; pitch: number; bearing: number }) {
+  // Keep persisted viewport payloads normalized and explicit.
+  return {
+    longitude: viewport.longitude,
+    latitude: viewport.latitude,
+    zoom: viewport.zoom,
+    pitch: viewport.pitch,
+    bearing: viewport.bearing
+  };
+}
+
 export function createPrimaryLayers(events: Event[], forces: ForcePosition[], assets: AssetPosition[]) {
   // These are the always-on mission layers for daily use.
   return [createStrikesLayer(events), createInterceptsLayer(events), createForcesLayer(forces), createAssetsLayer(assets)];

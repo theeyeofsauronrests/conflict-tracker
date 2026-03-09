@@ -120,8 +120,10 @@ function normalizeNation(value: string | undefined): string | null {
 }
 
 function resolveNationAnchor(nation: string, centroid: { lon: number; lat: number } | null): { lon: number; lat: number } | null {
-  if (centroid) return centroid;
-  return NATIONALITY_ANCHORS[nation] ?? null;
+  // Prefer canonical nation anchors so arcs originate from actor homeland, not target clustering centroids.
+  const anchor = NATIONALITY_ANCHORS[nation];
+  if (anchor) return anchor;
+  return centroid;
 }
 
 function buildEventArcs(events: ConflictEvent[]): EventArc[] {

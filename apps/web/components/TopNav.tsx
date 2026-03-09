@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Target as TargetIcon } from "@accelint/icons";
+import { Badge, Icon, Tab, TabList, Tabs } from "@/lib/ui";
 
 const NAV_ITEMS = [
   { href: "/", label: "Map View" },
@@ -11,39 +12,52 @@ const NAV_ITEMS = [
 
 export function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
-    <header
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 20,
-        borderBottom: "1px solid var(--c2-border)",
-        background: "rgba(0,0,0,0.95)",
-        backdropFilter: "blur(4px)"
-      }}
-    >
-      <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", gap: 10, alignItems: "center" }}>
-        <strong style={{ marginRight: 10 }}>Conflict Tracker</strong>
-        {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                padding: "6px 10px",
-                borderRadius: 6,
-                border: "1px solid var(--c2-border)",
-                textDecoration: "none",
-                color: "var(--c2-text)",
-                background: isActive ? "#111111" : "transparent"
-              }}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+    <header className="c2-topnav">
+      <nav className="c2-topnav-inner">
+        <div className="c2-brand-block">
+          <strong className="c2-brand-title c2-brand-title-row">
+            <span className="c2-brand-icon" aria-hidden>
+              <Icon>
+                <TargetIcon width={14} height={14} />
+              </Icon>
+            </span>
+            <span>Conflict Tracker</span>
+          </strong>
+          <span className="c2-brand-subtitle">Operational Display</span>
+        </div>
+        <Tabs
+          selectedKey={pathname}
+          onSelectionChange={(key: unknown) => {
+            if (typeof key === "string") {
+              router.push(key);
+            }
+          }}
+          orientation="horizontal"
+          align="start"
+          flex={false}
+        >
+          <TabList className="c2-nav-tabs">
+            {NAV_ITEMS.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Tab
+                  key={item.href}
+                  id={item.href}
+                  className={`c2-nav-tab ${isActive ? "is-active" : ""}`}
+                >
+                  {item.label}
+                </Tab>
+              );
+            })}
+          </TabList>
+        </Tabs>
+        <div className="c2-topnav-actions">
+          <Badge className="c2-top-badge">Public OSINT</Badge>
+          <Badge className="c2-top-badge">+6h delayed</Badge>
+        </div>
       </nav>
     </header>
   );
