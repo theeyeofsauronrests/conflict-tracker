@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/lib/ui";
 
 interface TimelineSliderProps {
   timestamps: number[];
@@ -86,29 +87,25 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
 
   if (!hasData) {
     return (
-      <div style={{ padding: 12, background: "var(--c2-panel)", border: "1px solid var(--c2-border)", borderRadius: 8 }}>
-        <label style={{ display: "block", marginBottom: 6 }}>Timeline window</label>
-        <div style={{ color: "var(--c2-muted)" }}>No timeline range available (no records).</div>
+      <div className="c2-control-surface">
+        <label className="c2-control-title">Timeline window</label>
+        <div className="c2-control-muted">No timeline range available (no records).</div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 12, background: "var(--c2-panel)", border: "1px solid var(--c2-border)", borderRadius: 8 }}>
-      <label htmlFor="timeline-track" style={{ display: "block", marginBottom: 8 }}>
-        Timeline window (records-bounded)
-      </label>
+    <div className="c2-control-surface c2-timeline-surface">
+      <div className="c2-control-head">
+        <label htmlFor="timeline-track" className="c2-control-title">
+          Timeline window
+        </label>
+        <span className="c2-control-muted">{windowHours.toFixed(1)}h visible</span>
+      </div>
       <div
         id="timeline-track"
         ref={trackRef}
-        style={{
-          position: "relative",
-          width: "100%",
-          height: 28,
-          borderRadius: 999,
-          background: "#050505",
-          border: "1px solid var(--c2-border)"
-        }}
+        className="c2-timeline-track"
       >
         <div
           data-testid="timeline-window"
@@ -117,22 +114,12 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
             setDragMode("move");
             setDragStartX(event.clientX);
             setDragPxPerIndex(getPxPerIndex());
-            setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
-          }}
-          style={{
-            position: "absolute",
-            left: `${leftPct}%`,
-            width: `${widthPct}%`,
-            minWidth: 10,
-            top: 2,
-            bottom: 2,
-            background: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: 999,
-            cursor: "grab"
-          }}
+              setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
+            }}
+          className="c2-timeline-window"
+          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
         >
-          <button
+          <Button
             type="button"
             aria-label="Resize timeline start"
             onMouseDown={(event) => {
@@ -143,19 +130,9 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
               setDragPxPerIndex(getPxPerIndex());
               setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
             }}
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 10,
-              border: "none",
-              background: "#9ca3af",
-              borderRadius: "999px 0 0 999px",
-              cursor: "ew-resize"
-            }}
+            className="c2-timeline-handle c2-timeline-handle-left"
           />
-          <button
+          <Button
             type="button"
             aria-label="Resize timeline end"
             onMouseDown={(event) => {
@@ -166,24 +143,17 @@ export function TimelineSlider({ timestamps, startIndex, endIndex, onChange }: T
               setDragPxPerIndex(getPxPerIndex());
               setDragStartRange({ start: safeStartIndex, end: safeEndIndex });
             }}
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 10,
-              border: "none",
-              background: "#9ca3af",
-              borderRadius: "0 999px 999px 0",
-              cursor: "ew-resize"
-            }}
+            className="c2-timeline-handle c2-timeline-handle-right"
           />
         </div>
       </div>
-      <div style={{ marginTop: 8, color: "var(--c2-muted)" }}>
-        <div>Start: {formatTs(startTs)}</div>
-        <div>End: {formatTs(endTs)}</div>
-        <div>{windowHours.toFixed(1)}h visible range</div>
+      <div className="c2-control-meta">
+        <div>
+          <span className="c2-control-muted">Start:</span> {formatTs(startTs)}
+        </div>
+        <div>
+          <span className="c2-control-muted">End:</span> {formatTs(endTs)}
+        </div>
       </div>
     </div>
   );

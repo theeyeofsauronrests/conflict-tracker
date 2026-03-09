@@ -2,9 +2,10 @@
 
 import React from "react";
 import type { Event } from "@conflict-tracker/data-model";
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useBookmarks } from "@/lib/use-bookmarks";
+import { Button, Checkbox, Input, Table } from "@/lib/ui";
 
 type SortField = "eventTime" | "eventType" | "confidence" | "actorNationality" | "targetNationality";
 type SortDirection = "asc" | "desc";
@@ -20,6 +21,7 @@ function toMillis(value: string): number {
 
 export function EventsTableView({ events }: EventsTableViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [eventTypeFilter, setEventTypeFilter] = useState<"all" | "strike" | "intercept">("all");
   const [nationalityFilter, setNationalityFilter] = useState("all");
   const [fromFilter, setFromFilter] = useState("");
@@ -28,6 +30,13 @@ export function EventsTableView({ events }: EventsTableViewProps) {
   const [sortField, setSortField] = useState<SortField>("eventTime");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const bookmarks = useBookmarks();
+  const bookmarkedParam = searchParams?.get("bookmarked");
+
+  useEffect(() => {
+    // Only force the bookmark toggle from URL when the param is explicitly present.
+    if (bookmarkedParam == null) return;
+    setBookmarkedOnly(bookmarkedParam === "1" || bookmarkedParam === "true");
+  }, [bookmarkedParam]);
 
   const nationalityOptions = useMemo(() => {
     const values = new Set<string>();
@@ -107,34 +116,23 @@ export function EventsTableView({ events }: EventsTableViewProps) {
   } as const;
 
   return (
-    <main style={{ padding: 16 }}>
-      <section
-        style={{
-          border: "1px solid var(--c2-border)",
-          borderRadius: 8,
-          background: "var(--c2-panel)",
-          padding: 12,
-          marginBottom: 12,
-          display: "grid",
-          gap: 10,
-          gridTemplateColumns: "repeat(5, minmax(0, 1fr))"
-        }}
-      >
-        <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ color: "var(--c2-muted)", fontSize: 12 }}>Event Type</span>
+    <main className="c2-table-page">
+      <section className="c2-table-filters">
+        <label className="c2-filter-field">
+          <span className="c2-filter-label">Event Type</span>
           <select
             value={eventTypeFilter}
             onChange={(e) => setEventTypeFilter(e.target.value as "all" | "strike" | "intercept")}
-            style={controlStyle}
+            style={controlStyle} className="c2-filter-control"
           >
             <option value="all">All</option>
             <option value="strike">Strike</option>
             <option value="intercept">Intercept</option>
           </select>
         </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ color: "var(--c2-muted)", fontSize: 12 }}>Nationality</span>
-          <select value={nationalityFilter} onChange={(e) => setNationalityFilter(e.target.value)} style={controlStyle}>
+        <label className="c2-filter-field">
+          <span className="c2-filter-label">Nationality</span>
+          <select value={nationalityFilter} onChange={(e) => setNationalityFilter(e.target.value)} style={controlStyle} className="c2-filter-control">
             <option value="all">All</option>
             {nationalityOptions.map((nation) => (
               <option key={nation} value={nation}>
@@ -143,54 +141,54 @@ export function EventsTableView({ events }: EventsTableViewProps) {
             ))}
           </select>
         </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ color: "var(--c2-muted)", fontSize: 12 }}>From (Date/Time)</span>
-          <input type="datetime-local" value={fromFilter} onChange={(e) => setFromFilter(e.target.value)} style={controlStyle} />
+        <label className="c2-filter-field">
+          <span className="c2-filter-label">From (Date/Time)</span>
+          <Input type="datetime-local" value={fromFilter} onChange={(e) => setFromFilter(e.target.value)} style={controlStyle} className="c2-filter-control" />
         </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ color: "var(--c2-muted)", fontSize: 12 }}>To (Date/Time)</span>
-          <input type="datetime-local" value={toFilter} onChange={(e) => setToFilter(e.target.value)} style={controlStyle} />
+        <label className="c2-filter-field">
+          <span className="c2-filter-label">To (Date/Time)</span>
+          <Input type="datetime-local" value={toFilter} onChange={(e) => setToFilter(e.target.value)} style={controlStyle} className="c2-filter-control" />
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}>
-          <input type="checkbox" checked={bookmarkedOnly} onChange={(e) => setBookmarkedOnly(e.target.checked)} />
-          <span style={{ color: "var(--c2-text)", fontSize: 13 }}>Bookmarked only</span>
+        <label className="c2-filter-checkbox-row">
+          <Checkbox type="checkbox" checked={bookmarkedOnly} onChange={(e) => setBookmarkedOnly(e.target.checked)} />
+          <span>Bookmarked only</span>
         </label>
       </section>
 
-      <section style={{ marginBottom: 8, color: "var(--c2-muted)" }}>
+      <section className="c2-table-meta">
         Showing {filteredAndSorted.length} of {events.length} events ({bookmarks.ready ? bookmarks.bookmarkCount : 0} bookmarked locally)
       </section>
 
       <div style={{ overflowX: "auto", border: "1px solid var(--c2-border)", borderRadius: 8 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+        <Table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
           <thead>
             <tr style={{ background: "#101010" }}>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>Bookmark</th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>Open</th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
-                <button type="button" onClick={() => onSort("eventTime")} style={buttonStyle}>
+                <Button type="button" onClick={() => onSort("eventTime")} style={buttonStyle}>
                   Time
-                </button>
+                </Button>
               </th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
-                <button type="button" onClick={() => onSort("eventType")} style={buttonStyle}>
+                <Button type="button" onClick={() => onSort("eventType")} style={buttonStyle}>
                   Type
-                </button>
+                </Button>
               </th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
-                <button type="button" onClick={() => onSort("actorNationality")} style={buttonStyle}>
+                <Button type="button" onClick={() => onSort("actorNationality")} style={buttonStyle}>
                   Actor
-                </button>
+                </Button>
               </th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
-                <button type="button" onClick={() => onSort("targetNationality")} style={buttonStyle}>
+                <Button type="button" onClick={() => onSort("targetNationality")} style={buttonStyle}>
                   Target
-                </button>
+                </Button>
               </th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>
-                <button type="button" onClick={() => onSort("confidence")} style={buttonStyle}>
+                <Button type="button" onClick={() => onSort("confidence")} style={buttonStyle}>
                   Confidence
-                </button>
+                </Button>
               </th>
               <th style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--c2-border)" }}>Summary</th>
             </tr>
@@ -199,23 +197,23 @@ export function EventsTableView({ events }: EventsTableViewProps) {
             {filteredAndSorted.map((event) => (
               <tr key={event.dedupeKey} style={{ borderBottom: "1px solid #161616" }}>
                 <td style={{ padding: "10px 12px" }}>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => bookmarks.toggleBookmark(event.dedupeKey)}
                     style={{ ...buttonStyle, minWidth: 40 }}
                     aria-label={`Toggle bookmark for ${event.dedupeKey}`}
                   >
                     {bookmarks.isBookmarked(event.dedupeKey) ? "★" : "☆"}
-                  </button>
+                  </Button>
                 </td>
                 <td style={{ padding: "10px 12px" }}>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => router.push(`/?event=${encodeURIComponent(event.dedupeKey)}`)}
                     style={buttonStyle}
                   >
                     View on map
-                  </button>
+                  </Button>
                 </td>
                 <td style={{ padding: "10px 12px" }}>{new Date(event.eventTime).toLocaleString()}</td>
                 <td style={{ padding: "10px 12px", textTransform: "uppercase" }}>{event.eventType}</td>
@@ -233,7 +231,7 @@ export function EventsTableView({ events }: EventsTableViewProps) {
               </tr>
             ) : null}
           </tbody>
-        </table>
+        </Table>
       </div>
     </main>
   );

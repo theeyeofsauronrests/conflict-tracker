@@ -2,6 +2,11 @@ import React, { type ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams()
+}));
+
 vi.mock("@deck.gl/react", () => ({
   default: () => <div data-testid="deck" />
 }));
@@ -14,13 +19,9 @@ vi.mock("react-map-gl/maplibre", () => ({
 
 vi.mock("@conflict-tracker/map-layers", () => ({
   createPrimaryLayers: () => [],
+  createOptionalLayers: () => [],
+  createSavedViewport: (viewport: unknown) => viewport,
   getDefaultViewport: () => ({ longitude: 44.3661, latitude: 33.3152, zoom: 4, pitch: 0, bearing: 0 })
-}));
-
-vi.mock("@accelint/design-toolkit", () => ({
-  Slider: (props: Record<string, unknown>) => <input {...props} />,
-  Drawer: ({ children }: { children: ReactNode }) => <aside>{children}</aside>,
-  Icon: ({ children }: { children: ReactNode }) => <span>{children}</span>
 }));
 
 vi.mock("@accelint/icons", () => ({
